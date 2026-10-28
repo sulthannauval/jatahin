@@ -38,14 +38,16 @@ describe("saving flows", () => {
   });
 });
 
-import { monthInsights, summarizeMonth } from "../finance";
+import { categoryChanges, summarizeMonth } from "../finance";
 
-describe("month insights", () => {
-  it("names the biggest category, the biggest rise and the saving rate", () => {
+describe("category changes", () => {
+  it("lists expense categories by size of change, skipping unchanged ones and savings deposits", () => {
     const cats = [
       { id: 1, name: "Lifestyle", kind: "expense" as const, group: "Keinginan", role: null },
       { id: 2, name: "Keluarga", kind: "expense" as const, group: "Lainnya", role: null },
       { id: 3, name: "Gaji", kind: "income" as const, group: "Rutin", role: null },
+      { id: 4, name: "Makan", kind: "expense" as const, group: "Kebutuhan", role: null },
+      { id: 5, name: "Setor tabungan", kind: "expense" as const, group: "Saving", role: "saving_deposit" as const },
     ];
     const sums = [
       { month: "2026-09", categoryId: 1, total: 500_000 },
@@ -53,8 +55,14 @@ describe("month insights", () => {
       { month: "2026-10", categoryId: 1, total: 1_000_000 },
       { month: "2026-10", categoryId: 2, total: 3_000_000 },
       { month: "2026-10", categoryId: 3, total: 5_000_000 },
+      { month: "2026-09", categoryId: 4, total: 900_000 },
+      { month: "2026-10", categoryId: 4, total: 900_000 },
+      { month: "2026-10", categoryId: 5, total: 9_000_000 },
     ];
-    const ins = monthInsights(summarizeMonth(sums, cats, "2026-10"), summarizeMonth(sums, cats, "2026-09"), cats, (n) => `Rp${n}`, "September");
-    expect(ins.map((i) => i.title)).toEqual(["Keluarga menjadi pengeluaran terbesar", "Lifestyle naik 100%", "20% pemasukan berhasil disimpan"]);
+    const rows = categoryChanges(summarizeMonth(sums, cats, "2026-10"), summarizeMonth(sums, cats, "2026-09"), cats);
+    expect(rows.map((r) => [r.name, r.prev, r.cur, r.diff])).toEqual([
+      ["Keluarga", 0, 3_000_000, 3_000_000],
+      ["Lifestyle", 500_000, 1_000_000, 500_000],
+    ]);
   });
 });
