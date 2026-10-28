@@ -1,0 +1,24 @@
+# deps
+/node_modules
+# next
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+# env & secrets — never commit
+.env
+.env*.local
+.env.*
+!.env.example
+# local data (pglite db, your xlsx export)
+/.local/
+/.data/
+*.xlsx
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+.vercel
+# design tooling scratch
+/.taste-skill/
