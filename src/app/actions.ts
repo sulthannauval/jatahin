@@ -12,6 +12,7 @@ import { budgets, categories, potAdjustments, pots, settings, transactions } fro
 import { isDateKey, isMonthKey, monthStart, today } from "@/lib/dates";
 import { parseAmount, parseBalance, rp } from "@/lib/money";
 import { getSavings } from "@/lib/queries";
+import type { InSheet } from "@/lib/backup/format";
 import { EXPENSE_GROUPS, INCOME_GROUPS } from "@/lib/finance";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -247,9 +248,20 @@ export async function importSpreadsheet(_: ActionResult | null, fd: FormData): P
   const replace = fd.get("replace") === "on";
   try {
     const { default: readExcelFile } = await import("read-excel-file/node");
+    // read-excel-file types date cells as `typeof Date`; at runtime they are Date objects.
+    const sheets = (await readExcelFile(Buffer.from(await file.arrayBuffer()))) as unknown as InSheet[];
+    const backup = await import("@/lib/backup/format");
+    if (backup.isBackup(sheets)) {
+      const { restoreBackup } = await import("@/lib/backup/db");
+      const res = await restoreBackup(await getDb(), backup.parseBackup(sheets), replace);
+      refresh();
+      return {
+        ok: true,
+        message: `Backup dipulihkan: ${res.transactions} transaksi, ${res.categories} kategori, ${res.pots} pos, ${res.adjustments} penyesuaian pos, ${res.budgets} budget`,
+      };
+    }
     const { parseWorkbook } = await import("@/lib/import/parse");
     const { applyImport } = await import("@/lib/import/apply");
-    const sheets = await readExcelFile(Buffer.from(await file.arrayBuffer()));
     const data = parseWorkbook(sheets as never);
     const res = await applyImport(await getDb(), data, replace);
     refresh();

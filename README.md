@@ -11,8 +11,9 @@ This repository is mainly an archive and a personal reference. Feel free to borr
 - **Daily transactions**: income and expenses by category, with search, filters and a table view that mirrors the old Daily Log sheet.
 - **Monthly budget**: remaining or over-budget amounts per category. Spending in categories without a budget is shown separately and kept out of the remaining-budget figure.
 - **Savings and goals**: balance per savings pot, goals funded one after another, the monthly amount needed to reach each target date, and matching pot balances against the bank.
-- **Report**: monthly summary, automatic highlights, spending breakdown by type, and a six-month trend.
+- **Report**: monthly summary, the expense categories that changed most against last month, spending breakdown by type, and a six-month trend.
 - **Carry-over balance**: each month's leftover becomes the next month's opening balance, like in the old spreadsheet.
+- **Backup**: download all data as one `.xlsx` file and restore it later from the same page.
 
 Single user, single account. Light and dark themes, works on desktop and mobile.
 
@@ -35,8 +36,16 @@ With `DATABASE_URL` left empty, the app uses a local embedded database (PGlite) 
 
 Importing data from the old spreadsheet (either works):
 
-- In the app: **Pengaturan → Impor dari Excel**, then upload the `.xlsx` export.
+- In the app: **Pengaturan → Ekspor & impor**, then upload the `.xlsx` export.
 - From the terminal: `npm run import -- path/to/MoneyFlows.xlsx` (add `--replace` to overwrite existing data).
+
+## Backup and restore
+
+**Pengaturan → Ekspor & impor → Unduh .xlsx** downloads `jatahin-backup-YYYY-MM-DD.xlsx`. It holds every transaction, category, savings pot, pot adjustment, budget and setting, one sheet per table, with the original IDs. The account (email and password hash) and sign-in records are left out.
+
+To restore, upload the file in the same section. The app tells a backup apart from the old MoneyFlows spreadsheet by its `Info` sheet. A restore replaces all finance data in one database transaction, so a file with a problem (for example an `ID kategori` that doesn't exist) is rejected with the sheet, row and column, and the current data stays as it was.
+
+The file opens in Excel or Google Sheets. Dates are stored as `YYYY-MM-DD` text so they can't shift between time zones. The name columns next to each ID are only there to make the file readable; a restore uses the IDs.
 
 ## Commands
 
@@ -47,6 +56,10 @@ Importing data from the old spreadsheet (either works):
 | `npm run build` | Run migrations, then build for production |
 | `npm run db:generate` | Create a migration after changing `src/lib/db/schema.ts` |
 | `npm run reset-password` | Set a new password from the terminal if it is forgotten |
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, tests and the production build on every pull request and on every push to `main`. It needs no secrets: the build migrates a throwaway PGlite database, and the spreadsheet test skips itself when `.local/MoneyFlows.xlsx` is missing.
 
 ## Security
 
@@ -81,4 +94,4 @@ It sets a new password (and optionally a new email), ends every session and clea
 1. Connect this (private) repository to Vercel.
 2. Add PostgreSQL (Neon from the Storage tab, or Supabase through its connection pooler) as `DATABASE_URL`.
 3. Set `APP_USER_EMAIL`, a fresh `SESSION_SECRET` (never reuse the local one) and `RESEND_API_KEY`.
-4. Deploy (migrations run during the build), open `/daftar` to create the account, then import the data from Settings.
+4. Deploy (migrations run during the build), open `/daftar` to create the account, then restore a backup file (or import the old spreadsheet) from Settings.

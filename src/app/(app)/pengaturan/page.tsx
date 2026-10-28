@@ -11,7 +11,7 @@ import { countTransactions, getCategories, getSavings, getPots, getSettings } fr
 import { dateTimeLabel, monthLabel } from "@/lib/dates";
 import { rp } from "@/lib/money";
 import { PageHeader } from "@/components/ui";
-import { AccountManager, CategoryManager, ImportForm, PotManager, SettingsForm } from "./forms";
+import { AccountManager, CategoryManager, ExportBackup, ImportForm, PotManager, SettingsForm } from "./forms";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 
@@ -45,9 +45,11 @@ export default async function SettingsPage() {
         </Section>
         <Section
           id="import"
-          title="Impor dari Excel"
-          description="Ekspor dari Google Sheets melalui File → Download → Microsoft Excel (.xlsx). Sheet Daily Log, Monthly Budget, Saving Goals, dan Categories dibaca secara otomatis."
+          title="Ekspor & impor"
+          description="Simpan backup secara berkala. File backup dapat diimpor kembali untuk memulihkan seluruh data. Impor juga menerima spreadsheet MoneyFlows lama (File → Download → Microsoft Excel di Google Sheets)."
         >
+          <ExportBackup txCount={txCount} />
+          <div className="my-4 border-t border-rule" />
           <ImportForm hasData={txCount > 0} />
         </Section>
         <Section id="tampilan" title="Tampilan" description="Mode terang digunakan secara bawaan. Pilihan disimpan di perangkat ini.">
