@@ -3,20 +3,23 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { requireSession } from "@/lib/auth/dal";
+import { failuresLastDay } from "@/lib/auth/account";
+import { pendingEmailChange } from "@/lib/auth/tokens";
+import { mailMode } from "@/lib/mail";
 import { getDb } from "@/lib/db";
 import { countTransactions, getCategories, getSavings, getPots, getSettings } from "@/lib/queries";
-import { monthLabel } from "@/lib/dates";
+import { dateTimeLabel, monthLabel } from "@/lib/dates";
 import { rp } from "@/lib/money";
 import { PageHeader } from "@/components/ui";
-import { CategoryManager, ImportForm, LogoutButton, PotManager, SettingsForm } from "./forms";
+import { AccountManager, CategoryManager, ImportForm, PotManager, SettingsForm } from "./forms";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 
 export default async function SettingsPage() {
-  await requireSession();
+  const acc = await requireSession();
   const db = await getDb();
-  const [cats, allPots, savings, cfg, txCount] = await Promise.all([
-    getCategories(db, true), getPots(db, true), getSavings(db), getSettings(db), countTransactions(db),
+  const [cats, allPots, savings, cfg, txCount, failures, pendingEmail] = await Promise.all([
+    getCategories(db, true), getPots(db, true), getSavings(db), getSettings(db), countTransactions(db), failuresLastDay(db), pendingEmailChange(db),
   ]);
   const bal = new Map(savings.pots.map((p) => [p.id, p.balance]));
   const activeCats = cats.filter((c) => !c.archived);
@@ -71,8 +74,21 @@ export default async function SettingsPage() {
             <SettingsForm carryStartMonth={cfg.carryStartMonth} carryStartBalance={cfg.carryStartBalance} />
           </details>
         </Section>
-        <Section id="akun" title="Akun" description="Sesi login berlaku 30 hari di perangkat ini.">
-          <LogoutButton />
+        <Section
+          id="akun"
+          title="Akun"
+          description="Hanya satu akun yang dapat masuk. Sesi berlaku 30 hari per perangkat. Lupa password dapat diatur ulang melalui email dari halaman login."
+        >
+          <AccountManager
+            info={{
+              email: acc.email,
+              pendingEmail,
+              passwordChanged: dateTimeLabel(acc.passwordChangedAt),
+              lastLogin: acc.lastLoginAt ? `${dateTimeLabel(acc.lastLoginAt)}${acc.lastLoginIp && acc.lastLoginIp !== "unknown" ? ` · IP ${acc.lastLoginIp}` : ""}` : null,
+              failures,
+              mail: mailMode(),
+            }}
+          />
         </Section>
       </div>
     </>

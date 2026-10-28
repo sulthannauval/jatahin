@@ -126,6 +126,44 @@ export const loginAttempts = pgTable(
   (t) => [index("login_attempts_ip_idx").on(t.ip, t.createdAt)],
 );
 
+/**
+ * The one account (id = 1), created at /daftar by the owner (APP_USER_EMAIL) through an email link.
+ * Raising sessionVersion invalidates every session token issued before it.
+ */
+export const account = pgTable(
+  "account",
+  {
+    id: integer("id").primaryKey().default(1),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    sessionVersion: integer("session_version").notNull().default(1),
+    passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    lastLoginIp: text("last_login_ip"),
+  },
+  (t) => [check("account_single_row", sql`${t.id} = 1`)],
+);
+
+export const authTokenPurpose = pgEnum("auth_token_purpose", ["setup", "reset", "email_change"]);
+
+/**
+ * One-time links sent by email: creating the account, resetting the password, confirming a new email.
+ * Only a SHA-256 hash of the link's token is stored. `email` is where the link was sent (the new address for email_change).
+ */
+export const authTokens = pgTable(
+  "auth_tokens",
+  {
+    id: serial("id").primaryKey(),
+    purpose: authTokenPurpose("purpose").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    email: text("email").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("auth_tokens_purpose_idx").on(t.purpose, t.createdAt)],
+);
+
 export type Category = typeof categories.$inferSelect;
 export type Pot = typeof pots.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;

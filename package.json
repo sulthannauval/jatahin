@@ -11,7 +11,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",
-    "hash-password": "node scripts/hash-password.mjs",
+    "reset-password": "tsx scripts/reset-password.mts",
     "gen-secret": "node scripts/gen-secret.mjs",
     "import": "tsx scripts/import-xlsx.mts"
   },

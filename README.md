@@ -24,11 +24,12 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Drizzle ORM · Postgr
 
 ```bash
 npm install
-cp .env.example .env.local      # then fill in the three values below
+cp .env.example .env.local      # set APP_USER_EMAIL, then:
 npm run gen-secret              # → SESSION_SECRET
-npm run hash-password           # → APP_PASSWORD_HASH (the password itself is never stored)
 npm run dev                     # http://localhost:3000
 ```
+
+Then open `/daftar`, enter the owner email and follow the link to create a password. Locally, without `RESEND_API_KEY`, the email (with its link) is printed in the terminal.
 
 With `DATABASE_URL` left empty, the app uses a local embedded database (PGlite) in `./.data/pglite`, so no PostgreSQL install is needed.
 
@@ -45,18 +46,39 @@ Importing data from the old spreadsheet (either works):
 | `npm test` | Run tests, including a check that imported figures match the spreadsheet (needs `.local/MoneyFlows.xlsx`) |
 | `npm run build` | Run migrations, then build for production |
 | `npm run db:generate` | Create a migration after changing `src/lib/db/schema.ts` |
+| `npm run reset-password` | Set a new password from the terminal if it is forgotten |
 
 ## Security
 
-- One account only (`APP_USER_EMAIL`). The password is stored as a scrypt hash in an environment variable, never in code.
-- Sessions use a signed `HttpOnly`, `Secure`, `SameSite=Lax` cookie (`SESSION_SECRET`), valid for 30 days.
-- After 5 failed sign-ins from one IP (or 30 in total) within 15 minutes, sign-in is temporarily locked.
+- One account only. It is created at `/daftar`, and only for the owner's address (`APP_USER_EMAIL`), confirmed by an email link. Once it exists, the page is closed.
+- Passwords are stored as scrypt hashes, never in plain text.
+- Sessions use a signed `HttpOnly`, `Secure`, `SameSite=Lax` cookie (`SESSION_SECRET`), valid for 30 days. Each session carries a version number, so changing or resetting the password, or choosing "sign out everywhere", ends sessions on other devices right away.
+- After 5 failed attempts from one IP (or 30 in total) within 15 minutes, sign-in is temporarily locked. Wrong passwords entered in account settings count too.
+- Email links (setup, reset, new email) are random, single-use and short-lived (30–60 minutes); only their hash is stored. The forgotten-password form gives the same reply for any address, and at most 3 links per kind are sent per 15 minutes.
 - All data access happens on the server, and every page and action re-checks the session.
 - `.env*` files, the local database and `.xlsx` files are never committed.
+
+## Account
+
+**Pengaturan → Akun**:
+
+- Change the login email. A confirmation link goes to the new address, and the change applies once it is opened.
+- Change the password. Other devices are signed out and a notice is emailed.
+- See the last sign-in and recent failed attempts, and sign out of every device.
+
+**Forgot the password?** Use "Lupa password?" on the sign-in page. Email is sent with [Resend](https://resend.com) (free plan: 100 emails a day). Without your own domain in Resend, emails can only go to the address of your Resend account, which is fine for a single owner.
+
+If email isn't available, run this from the project folder with the same database connection as the app:
+
+```bash
+npm run reset-password
+```
+
+It sets a new password (and optionally a new email), ends every session and clears the sign-in lockout.
 
 ## Deployment plan
 
 1. Connect this (private) repository to Vercel.
 2. Add PostgreSQL (Neon from the Storage tab, or Supabase through its connection pooler) as `DATABASE_URL`.
-3. Set fresh values for `APP_USER_EMAIL`, `APP_PASSWORD_HASH` and `SESSION_SECRET` (never reuse the local ones).
-4. Deploy (migrations run during the build), sign in, then import the data from Settings.
+3. Set `APP_USER_EMAIL`, a fresh `SESSION_SECRET` (never reuse the local one) and `RESEND_API_KEY`.
+4. Deploy (migrations run during the build), open `/daftar` to create the account, then import the data from Settings.

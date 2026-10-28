@@ -22,6 +22,20 @@
       "when": 1793176408931,
       "tag": "0002_drop_income_target",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793181992224,
+      "tag": "0003_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793197886367,
+      "tag": "0004_auth_tokens",
+      "breakpoints": true
     }
   ]
 }
