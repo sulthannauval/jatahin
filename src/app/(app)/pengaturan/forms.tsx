@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import { Archive, ArchiveRestore, Loader2, LogOut, MonitorSmartphone, Pencil, Plus, Upload, X } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Loader2, LogOut, MonitorSmartphone, Pencil, Plus, Upload, X } from "lucide-react";
 import {
   importSpreadsheet, logout, saveCategory, savePot, saveSettings, setCategoryArchived, setPotArchived, type ActionResult,
 } from "@/app/actions";
@@ -11,7 +11,7 @@ import { EXPENSE_GROUPS, INCOME_GROUPS } from "@/lib/finance";
 import { groupDigits, rp } from "@/lib/money";
 import { shortDate } from "@/lib/dates";
 import { useTx } from "@/components/tx-context";
-import { Badge, Button, Input, Label, Select } from "@/components/ui";
+import { Badge, Button, buttonClass, Input, Label, Select } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 type Cat = { id: number; name: string; kind: "income" | "expense"; group: string; archived: boolean };
@@ -223,7 +223,24 @@ export function SettingsForm({ carryStartMonth, carryStartBalance }: { carryStar
   );
 }
 
-// ── Import ────────────────────────────────────────────────────
+// ── Export & import ───────────────────────────────────────────
+
+export function ExportBackup({ txCount }: { txCount: number }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="min-w-0 flex-1 text-sm">
+        <span className="block font-medium">Backup data</span>
+        <span className="block text-[13px] text-muted">
+          {txCount} transaksi beserta kategori, pos, penyesuaian, budget, dan pengaturan. Email dan password tidak disertakan.
+        </span>
+      </p>
+      {/* A plain link: the route returns a file, so there is nothing to prefetch. */}
+      <a href="/pengaturan/ekspor" download className={buttonClass("secondary")}>
+        <Download className="size-4" strokeWidth={1.75} /> Unduh .xlsx
+      </a>
+    </div>
+  );
+}
 
 export function ImportForm({ hasData }: { hasData: boolean }) {
   const [state, action, pending] = useFormAction(importSpreadsheet);
@@ -233,8 +250,8 @@ export function ImportForm({ hasData }: { hasData: boolean }) {
       <label className="flex cursor-pointer items-center gap-3 rounded-full border border-dashed border-control px-4 py-4 transition-colors hover:border-ink-2 hover:bg-raised/50">
         <Upload className="size-5 text-muted" strokeWidth={1.5} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{name || "Pilih file .xlsx dari spreadsheet lama"}</span>
-          <span className="block text-xs text-muted">Google Sheets → File → Download → Microsoft Excel (.xlsx)</span>
+          <span className="block truncate text-sm font-medium">{name || "Pilih file .xlsx"}</span>
+          <span className="block text-xs text-muted">Backup Jatahin! atau spreadsheet MoneyFlows lama</span>
         </span>
         <input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" required onChange={(e) => setName(e.target.files?.[0]?.name ?? "")} />
       </label>
