@@ -12,8 +12,9 @@ function secretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken(): Promise<string> {
-  return new SignJWT({})
+/** `version` is the account's session version; raising it in the database ends older sessions. */
+export async function createSessionToken(version: number): Promise<string> {
+  return new SignJWT({ sv: version })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject("owner")
     .setIssuedAt()
@@ -21,13 +22,14 @@ export async function createSessionToken(): Promise<string> {
     .sign(secretKey());
 }
 
-export async function verifySessionToken(token: string | undefined): Promise<boolean> {
-  if (!token) return false;
+/** The session version inside a valid token, or null. Only checks the signature and expiry, not the database. */
+export async function verifySessionToken(token: string | undefined): Promise<number | null> {
+  if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
-    return payload.sub === "owner";
+    return payload.sub === "owner" && typeof payload.sv === "number" ? payload.sv : null;
   } catch {
-    return false;
+    return null;
   }
 }
 

@@ -80,3 +80,10 @@ export function daysInMonth(month: string): number {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
+
+const dateTimeFmt = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** "28 Oktober 2026, 17.09 WIB" */
+export function dateTimeLabel(d: Date): string {
+  return `${dateTimeFmt.format(d).replace(" pukul", ",")} WIB`;
+}
