@@ -314,55 +314,18 @@ export function neededPerMonth(remaining: number, targetDate: string | null, tod
   return months > 0 ? Math.ceil(remaining / months) : remaining;
 }
 
-export type Insight = { kind: "top" | "growth" | "saving"; tone: "neutral" | "pos" | "neg"; title: string; detail: string };
 type NamedCat = CatInfo & { name: string };
+export type CategoryChange = { id: number; name: string; group: string; prev: number; cur: number; diff: number };
 
-/**
- * Up to three plain-language findings for a month against the previous one: where most money went, what grew the
- * most, and how much of real income was kept. Amounts are left as numbers for the caller to format.
- */
-export function monthInsights(
-  cur: MonthSummary,
-  prev: MonthSummary,
-  cats: NamedCat[],
-  fmt: (n: number) => string,
-  prevLabel: string,
-): Insight[] {
-  const out: Insight[] = [];
-  const expenseCats = cats.filter((c) => c.kind === "expense");
-  const spend = (s: MonthSummary, id: number) => s.byCategory.get(id) ?? 0;
-
-  const top = expenseCats.map((c) => ({ c, v: spend(cur, c.id) })).sort((a, b) => b.v - a.v)[0];
-  if (top && top.v > 0 && cur.expense > 0) {
-    out.push({
-      kind: "top",
-      tone: "neutral",
-      title: `${top.c.name} menjadi pengeluaran terbesar`,
-      detail: `${fmt(top.v)} atau ${Math.round((top.v / cur.expense) * 100)}% dari total pengeluaran bulan ini.`,
-    });
-  }
-
-  const growth = expenseCats
-    .map((c) => ({ c, a: spend(prev, c.id), b: spend(cur, c.id) }))
-    .filter((x) => x.b - x.a > 0 && x.c.id !== top?.c.id)
-    .sort((x, y) => y.b - y.a - (x.b - x.a))[0];
-  if (growth) {
-    out.push({
-      kind: "growth",
-      tone: "neg",
-      title: growth.a > 0 ? `${growth.c.name} naik ${Math.round(((growth.b - growth.a) / growth.a) * 100)}%` : `${growth.c.name} muncul bulan ini`,
-      detail: growth.a > 0 ? `Dari ${fmt(growth.a)} di ${prevLabel} menjadi ${fmt(growth.b)}.` : `${fmt(growth.b)}, sebelumnya tidak ada pengeluaran di kategori ini.`,
-    });
-  }
-
-  if (cur.savingRate !== null) {
-    const kept = Math.round(cur.savingRate * cur.realIncome);
-    out.push({
-      kind: "saving",
-      tone: cur.savingRate >= 0.2 ? "pos" : cur.savingRate < 0 ? "neg" : "neutral",
-      title: `${Math.round(cur.savingRate * 1000) / 10}% pemasukan berhasil disimpan`.replace(".", ","),
-      detail: `${fmt(Math.max(0, kept))} dari pemasukan ${fmt(cur.realIncome)}${cur.withdraw > 0 ? `, di luar penarikan tabungan ${fmt(cur.withdraw)}` : ""}.`,
-    });
-  }
-  return out;
+/** Expense categories that moved the most against the previous month, largest change first. Savings deposits excluded. */
+export function categoryChanges(cur: MonthSummary, prev: MonthSummary, cats: NamedCat[], limit = 5): CategoryChange[] {
+  return cats
+    .filter((c) => c.kind === "expense" && c.role !== "saving_deposit")
+    .map((c) => {
+      const a = prev.byCategory.get(c.id) ?? 0, b = cur.byCategory.get(c.id) ?? 0;
+      return { id: c.id, name: c.name, group: c.group, prev: a, cur: b, diff: b - a };
+    })
+    .filter((x) => x.diff !== 0)
+    .sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff) || x.name.localeCompare(y.name))
+    .slice(0, limit);
 }

@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import { ChartPie, ChevronDown, PiggyBank, TrendingUp } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
 import { getDashboard } from "@/lib/queries";
 import { addMonths, currentMonth, isMonthKey, monthLabel, monthName } from "@/lib/dates";
-import { monthInsights } from "@/lib/finance";
+import { categoryChanges } from "@/lib/finance";
 import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, SectionHeader } from "@/components/ui";
+import { Card, Dot, SectionHeader } from "@/components/ui";
+import { Table, Td, Th } from "@/components/table";
 import { KpiStrip, change } from "@/components/kpi";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { TrendChart, TrendLegend } from "@/components/charts/trend-chart";
@@ -17,7 +18,7 @@ import { Composition } from "@/components/composition";
 export const metadata: Metadata = { title: "Laporan" };
 
 /**
- * One question per section: how did the month go (figures), what stands out (findings), where did the money go
+ * One question per section: how did the month go (figures), which categories moved, where did the money go
  * (composition by type, opening to categories), how is it moving (six months). The sheet-style table is on request.
  */
 export default async function ReportPage({ searchParams }: PageProps<"/laporan">) {
@@ -27,7 +28,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
   const d = await getDashboard(await getDb(), month);
   const { summary: s, prev: p } = d;
   const prevName = monthName(addMonths(month, -1));
-  const insights = monthInsights(s, p, d.cats, rp, prevName);
+  const changes = categoryChanges(s, p, d.cats);
   const months = d.trend.filter((t) => t.income > 0 || t.expense > 0);
   const avgIn = months.length ? Math.round(months.reduce((a, t) => a + t.income, 0) / months.length) : 0;
   const avgOut = months.length ? Math.round(months.reduce((a, t) => a + t.expense, 0) / months.length) : 0;
@@ -58,30 +59,39 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
         ]}
       />
 
-      {/* What stands out */}
-      {insights.length > 0 && (
-        <section className="mt-8" aria-labelledby="sorotan">
-          <SectionHeader id="sorotan" title="Sorotan" note="temuan otomatis dari data bulan ini" />
-          <div className="grid gap-3 sm:grid-cols-3">
-            {insights.map((i) => {
-              const Icon = i.kind === "growth" ? TrendingUp : i.kind === "saving" ? PiggyBank : ChartPie;
-              return (
-                <Card key={i.title} className="p-5">
-                  <span
-                    className={cn(
-                      "grid size-8 place-items-center rounded-full",
-                      i.tone === "neg" ? "bg-[var(--pill-neg-bg)] text-[var(--pill-neg-ink)]" : i.tone === "pos" ? "bg-[var(--pill-pos-bg)] text-[var(--pill-pos-ink)]" : "bg-brand-soft text-brand",
-                    )}
-                    aria-hidden
-                  >
-                    <Icon className="size-4" strokeWidth={2} />
-                  </span>
-                  <p className="mt-3 text-[15px] leading-6 font-medium">{i.title}</p>
-                  <p className="num mt-1 text-sm leading-5 text-muted">{i.detail}</p>
-                </Card>
-              );
-            })}
-          </div>
+      {/* Which categories moved */}
+      {changes.length > 0 && (
+        <section className="mt-8" aria-labelledby="perubahan">
+          <SectionHeader id="perubahan" title="Perubahan terbesar" note={`per kategori, dibandingkan dengan ${prevName}`} />
+          <Card className="overflow-hidden">
+            {/* Phones: a list, so the change stays visible without scrolling sideways */}
+            <ul className="divide-y divide-rule sm:hidden">
+              {changes.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-2 text-sm leading-5"><Dot group={c.group} />{c.name}</p>
+                    <p className="num mt-0.5 text-xs text-muted">{c.prev ? rp(c.prev) : "—"} → {c.cur ? rp(c.cur) : "—"}</p>
+                  </div>
+                  <span className={cn("num shrink-0 text-sm font-medium", c.diff > 0 ? "text-neg" : "text-pos")}>{c.diff > 0 ? "+" : "−"}{rp(Math.abs(c.diff))}</span>
+                </li>
+              ))}
+            </ul>
+            <Table className="hidden sm:table">
+              <thead>
+                <tr><Th>Kategori</Th><Th num>{prevName}</Th><Th num>{monthName(month)}</Th><Th num>Selisih</Th></tr>
+              </thead>
+              <tbody>
+                {changes.map((c) => (
+                  <tr key={c.id}>
+                    <Td><span className="flex items-center gap-2"><Dot group={c.group} />{c.name}</span></Td>
+                    <Td num className="text-ink-2">{c.prev ? rp(c.prev) : "—"}</Td>
+                    <Td num>{c.cur ? rp(c.cur) : "—"}</Td>
+                    <Td num className={cn("font-medium", c.diff > 0 ? "text-neg" : "text-pos")}>{c.diff > 0 ? "+" : "−"}{rp(Math.abs(c.diff))}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
         </section>
       )}
 
