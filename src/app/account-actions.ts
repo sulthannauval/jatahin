@@ -10,7 +10,7 @@ import { cancelTokens, issueToken, recentTokens } from "@/lib/auth/tokens";
 import { normalizeEmail, passwordProblem } from "@/lib/auth/policy";
 import { clientIp, requireSession, startSession } from "@/lib/auth/dal";
 import { SESSION_COOKIE } from "@/lib/auth/session";
-import { appUrl, sendMail, trySendMail } from "@/lib/mail";
+import { MAIL_FAILED, appUrl, mailMode, sendMail, trySendMail } from "@/lib/mail";
 import { dateTimeLabel } from "@/lib/dates";
 import type { ActionResult } from "./actions";
 
@@ -63,6 +63,15 @@ export async function changeEmail(_: ActionResult | null, fd: FormData): Promise
   const db = await getDb();
   if ((await recentTokens(db, "email_change", 15)) >= 3) return fail("Terlalu banyak permintaan. Coba lagi 15 menit lagi.");
 
+  if (mailMode() === "off") return fail("Pengiriman email belum diatur (RESEND_API_KEY).");
+
+  let base: string;
+  try {
+    base = await appUrl();
+  } catch (e) {
+    console.error("Email change link not sent:", e);
+    return fail(MAIL_FAILED);
+  }
   const token = await issueToken(db, "email_change", email, VERIFY_MINUTES);
   try {
     await sendMail({
@@ -72,11 +81,12 @@ export async function changeEmail(_: ActionResult | null, fd: FormData): Promise
         `Buka tautan berikut untuk menjadikan ${email} sebagai email login Jatahin!.`,
         `Tautan berlaku ${VERIFY_MINUTES} menit. Abaikan email ini jika Anda tidak memintanya.`,
       ],
-      link: { label: "Konfirmasi email", url: `${await appUrl()}/verifikasi-email?token=${token}` },
+      link: { label: "Konfirmasi email", url: `${base}/verifikasi-email?token=${token}` },
     });
   } catch (e) {
+    console.error("Email change link not sent:", e);
     await cancelTokens(db, "email_change");
-    return fail(e instanceof Error ? e.message : "Email gagal dikirim.");
+    return fail(MAIL_FAILED);
   }
   refresh();
   return { ok: true, message: `Tautan konfirmasi dikirim ke ${email}.` };

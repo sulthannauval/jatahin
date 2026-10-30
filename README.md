@@ -47,6 +47,8 @@ To restore, upload the file in the same section. The app tells a backup apart fr
 
 The file opens in Excel or Google Sheets. Dates are stored as `YYYY-MM-DD` text so they can't shift between time zones. The name columns next to each ID are only there to make the file readable; a restore uses the IDs.
 
+On Vercel, a cron job (`vercel.json`) emails the same file to the login email every Monday between 06:00 and 07:00 Jakarta time (Sunday 23:00 UTC). It calls `/api/cron/backup`, which only answers requests carrying `Authorization: Bearer $CRON_SECRET`; without `CRON_SECRET` it refuses everything. A failed send shows up as a 500 in the Vercel logs.
+
 ## Commands
 
 | Command | What it does |
@@ -95,6 +97,6 @@ Vercel with a Neon Postgres database, both in Singapore (`vercel.json` sets the 
 
 1. Import this (private) repository in Vercel.
 2. Add Neon from the project's **Storage** tab, in the Singapore region (`aws-ap-southeast-1`), connected to the **Production** environment only. It sets `DATABASE_URL` (pooled, used by the app) and `DATABASE_URL_UNPOOLED` (direct, used for migrations).
-3. Set `APP_USER_EMAIL`, a fresh `SESSION_SECRET` (never reuse the local one) and `RESEND_API_KEY` for Production.
+3. Set `APP_USER_EMAIL`, a fresh `SESSION_SECRET` (never reuse the local one), `RESEND_API_KEY` and `CRON_SECRET` (generate it with `npm run gen-secret`) for Production.
 4. Deploy. Production builds run the migrations first. Preview builds skip them, so an unmerged branch never changes the real database.
 5. Open `/daftar` to create the account, then restore a backup file (or import the old spreadsheet) from Settings.
