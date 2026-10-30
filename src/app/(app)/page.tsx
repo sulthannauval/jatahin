@@ -8,12 +8,14 @@ import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { Card, Dot, MoreLink, PlanBar, buttonClass } from "@/components/ui";
 import { KpiStrip, change } from "@/components/kpi";
+import { BalanceCard } from "@/components/balance";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { TxList } from "@/components/tx-list";
 
 /**
  * One question: "how is my money this month?"
- * A KPI strip answers it (balance, money in, money out, saving rate, each against last month); under it the budget
+ * The balance answers it first, like a bank screen, with how it was reached; a KPI strip follows (money in, money out,
+ * saving rate, each against last month); under it the budget
  * with what needs attention, and the latest entries. Everything else lives on /laporan.
  */
 export default async function HomePage({ searchParams }: PageProps<"/">) {
@@ -66,15 +68,26 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         <MonthSwitcher month={month} path="/" compact />
       </div>
 
-      {/* The answer, in four figures */}
+      {/* The balance first, like a bank screen; how it was reached sits beside it */}
+      <BalanceCard
+        label={isCurrent ? "Saldo saat ini" : `Saldo akhir ${monthLabel(month)}`}
+        balance={balance}
+        // Without a carry-over the balance is this month's change itself, so there is nothing to break down.
+        lines={
+          carry
+            ? [
+                { label: `Sisa ${prevName}`, amount: carry.opening, sign: null },
+                { label: s.net >= 0 ? "Bertambah bulan ini" : "Berkurang bulan ini", amount: Math.abs(s.net), sign: s.net >= 0 ? "+" : "−" },
+              ]
+            : []
+        }
+        note={`Uang yang bisa dipakai. Tabungan ${rp(d.savings.total)} dihitung terpisah.`}
+      />
+
+      {/* How this month went, against last month */}
       <KpiStrip
+        className="mt-4"
         items={[
-          {
-            label: "Saldo bersih",
-            value: rp(balance),
-            tone: balance < 0 ? "neg" : undefined,
-            sub: carry ? <>Termasuk saldo {prevName} {rp(carry.opening)}</> : "Pemasukan dikurangi pengeluaran",
-          },
           {
             label: "Pemasukan",
             value: rp(s.realIncome),
