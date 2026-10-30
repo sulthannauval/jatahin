@@ -100,7 +100,7 @@ export default async function SavingsPage() {
             ) : (
               <>
                 <p className="text-sm text-muted">Goal</p>
-                <p className="mt-1 text-[15px]">{s.goals.length ? "Semua goal telah tercapai." : <>Belum ada goal. <Link href="/pengaturan#pos" className="text-brand underline underline-offset-4">Tetapkan target pada salah satu pos</Link>.</>}</p>
+                <p className="mt-1 text-[15px]">{s.goals.length ? "Semua goal telah tercapai." : <>Belum ada goal. <Link href="/pengaturan#pos" className="text-brand-ink underline underline-offset-4">Tetapkan target pada salah satu pos</Link>.</>}</p>
               </>
             )}
           </Card>

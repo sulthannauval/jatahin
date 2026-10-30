@@ -19,5 +19,5 @@ export default function LoginPage() {
 
 async function SetupHint() {
   if (await loadAccount()) return null;
-  return <>Belum ada akun? <Link href="/daftar" className="font-medium text-brand hover:underline">Buat akun</Link></>;
+  return <>Belum ada akun? <Link href="/daftar" className="font-medium text-brand-ink hover:underline">Buat akun</Link></>;
 }

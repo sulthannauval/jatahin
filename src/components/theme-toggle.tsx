@@ -14,7 +14,7 @@ function read(): Theme {
 export function setTheme(t: Theme) {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem("mf-theme", t); } catch {}
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "dark" ? "#0b0e14" : "#f4f6fa");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "dark" ? "#000000" : "#f7f8f8");
   listeners.forEach((l) => l());
 }
 

@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Buat akun" };
 
 export default function SetupPage() {
   return (
-    <AuthShell title="Buat akun" sub="Hanya untuk email pemilik" footer={<>Sudah punya akun? <Link href="/login" className="font-medium text-brand hover:underline">Masuk</Link></>}>
+    <AuthShell title="Buat akun" sub="Hanya untuk email pemilik" footer={<>Sudah punya akun? <Link href="/login" className="font-medium text-brand-ink hover:underline">Masuk</Link></>}>
       <p className="mb-4 text-sm leading-6 text-ink-2">Masukkan email pemilik. Tautan untuk membuat password akan dikirim ke email tersebut.</p>
       <Suspense>
         <Gate />
