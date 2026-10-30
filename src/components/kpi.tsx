@@ -11,18 +11,26 @@ export type Kpi = {
   sub?: ReactNode;
 };
 
-/** One card split by dividers: label over a large figure, a small change badge beside it, a quiet line under it. */
+/**
+ * One card split by dividers: label over a large figure, a small change badge beside it, a quiet line under it.
+ * Two columns on phones (an odd last item takes the full row), one row on wide screens.
+ */
 export function KpiStrip({ items, className }: { items: Kpi[]; className?: string }) {
   return (
-    <section className={cn("grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-surface lg:grid-cols-4", className)}>
+    <section
+      className={cn(
+        // The 1px gap over a border-coloured background draws the dividers, whatever the column count.
+        "grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line",
+        items.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4",
+        className,
+      )}
+    >
       {items.map((k, i) => (
         <div
           key={k.label}
           className={cn(
-            "min-w-0 px-4 py-4 sm:px-5 sm:py-5",
-            i % 2 === 1 && "border-l border-line",
-            i >= 2 && "border-t border-line lg:border-t-0",
-            i === 2 && "lg:border-l",
+            "min-w-0 bg-surface px-4 py-4 sm:px-5 sm:py-5",
+            items.length % 2 === 1 && i === items.length - 1 && "col-span-2 lg:col-span-1",
           )}
         >
           <p className="text-sm text-muted">{k.label}</p>
