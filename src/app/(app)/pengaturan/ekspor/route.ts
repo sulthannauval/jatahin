@@ -1,20 +1,15 @@
-import writeXlsxFile from "write-excel-file/node";
 import { requireSession } from "@/lib/auth/dal";
-import { readBackup } from "@/lib/backup/db";
-import { toSheets } from "@/lib/backup/format";
+import { XLSX_TYPE, backupFile } from "@/lib/backup/file";
 import { getDb } from "@/lib/db";
-import { today } from "@/lib/dates";
 
 // Downloads every finance table as one .xlsx file that the import form can restore.
 export async function GET() {
   await requireSession();
-  const now = new Date();
-  const sheets = toSheets(await readBackup(await getDb()), now);
-  const buffer = await writeXlsxFile(sheets, { fontFamily: "Calibri", fontSize: 11 }).toBuffer();
-  return new Response(new Uint8Array(buffer), {
+  const { filename, content } = await backupFile(await getDb());
+  return new Response(new Uint8Array(content), {
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="jatahin-backup-${today(now)}.xlsx"`,
+      "Content-Type": XLSX_TYPE,
+      "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "private, no-store",
     },
   });

@@ -4,7 +4,11 @@ import { headers } from "next/headers";
 // Sends through Resend's HTTP API when RESEND_API_KEY is set. In local development without a key,
 // the message (with its link) is printed to the terminal instead.
 
-type Mail = { to: string; subject: string; lines: string[]; link?: { label: string; url: string } };
+type Attachment = { filename: string; content: Buffer };
+type Mail = { to: string; subject: string; lines: string[]; link?: { label: string; url: string }; attachments?: Attachment[] };
+
+/** What forms show when an email can't be sent. The cause goes to the server log only. */
+export const MAIL_FAILED = "Email gagal dikirim. Coba lagi beberapa saat lagi.";
 
 export type MailMode = "resend" | "console" | "off";
 
@@ -18,7 +22,7 @@ export async function appUrl(): Promise<string> {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   if (process.env.NODE_ENV !== "production") return `http://${(await headers()).get("host") ?? "localhost:3000"}`;
-  throw new Error("APP_URL is not set");
+  throw new Error("Alamat aplikasi belum diatur (APP_URL).");
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -38,18 +42,20 @@ export async function sendMail(m: Mail): Promise<void> {
   const mode = mailMode();
   const { text, html } = render(m);
   if (mode === "console") {
-    console.log(`\n┌─ Email (lokal, tidak dikirim) ─────────────\n│ Kepada: ${m.to}\n│ Subjek: ${m.subject}\n│\n${text.split("\n").map((l) => "│ " + l).join("\n")}\n└────────────────────────────────────────────\n`);
+    console.log(`\n┌─ Email (lokal, tidak dikirim) ─────────────\n│ Kepada: ${m.to}\n│ Subjek: ${m.subject}\n${(m.attachments ?? []).map((a) => `│ Lampiran: ${a.filename} (${a.content.length} byte)\n`).join("")}│\n${text.split("\n").map((l) => "│ " + l).join("\n")}\n└────────────────────────────────────────────\n`);
     return;
   }
   if (mode === "off") throw new Error("Pengiriman email belum diatur (RESEND_API_KEY).");
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: process.env.EMAIL_FROM || "Jatahin! <onboarding@resend.dev>", to: [m.to], subject: m.subject, text, html }),
+    body: JSON.stringify({ from: process.env.EMAIL_FROM || "Jatahin! <onboarding@resend.dev>", to: [m.to], subject: m.subject, text, html,
+      ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: a.content.toString("base64") })) } : {}),
+    }),
   });
   if (!res.ok) {
     console.error("Resend error", res.status, await res.text().catch(() => ""));
-    throw new Error("Email gagal dikirim. Coba lagi beberapa saat lagi.");
+    throw new Error(MAIL_FAILED);
   }
 }
 

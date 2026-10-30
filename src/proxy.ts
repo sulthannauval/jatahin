@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 // Pages reachable without a session: recovery and email links must work signed out.
-const PUBLIC = new Set(["/auth/expired", "/daftar/buat-password", "/lupa-password", "/reset-password", "/verifikasi-email"]);
+// The cron route checks its own secret instead.
+const PUBLIC = new Set(["/auth/expired", "/daftar/buat-password", "/lupa-password", "/reset-password", "/verifikasi-email", "/api/cron/backup"]);
 
 // Fast redirect for signed-out visitors. Real checks also happen in every page/action (lib/auth/dal.ts).
 export async function proxy(request: NextRequest) {

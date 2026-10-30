@@ -69,17 +69,19 @@ export async function requestSetup(_: AuthState, fd: FormData): Promise<AuthStat
   if ((await recentTokens(db, "setup", 15)) >= MAX_LINKS) return { error: "Terlalu banyak permintaan. Coba lagi 15 menit lagi.", email };
 
   // Only the owner's address (APP_USER_EMAIL) gets a link; the reply is the same either way.
+  // A failed send is only logged: showing it would reveal which address is the owner's.
   if (email === owner) {
-    const token = await issueToken(db, "setup", email, SETUP_MINUTES);
     try {
+      const base = await appUrl();
+      const token = await issueToken(db, "setup", email, SETUP_MINUTES);
       await sendMail({
         to: email,
         subject: "Buat akun Jatahin!",
         lines: ["Gunakan tautan berikut untuk membuat password dan mulai menggunakan Jatahin!.", `Tautan berlaku ${SETUP_MINUTES} menit dan hanya dapat digunakan sekali.`],
-        link: { label: "Buat password", url: `${await appUrl()}/daftar/buat-password?token=${token}` },
+        link: { label: "Buat password", url: `${base}/daftar/buat-password?token=${token}` },
       });
     } catch (e) {
-      return { error: e instanceof Error ? e.message : "Email gagal dikirim.", email };
+      console.error("Setup email not sent:", e);
     }
   }
   return { message: `Jika ${email} adalah email pemilik yang terdaftar, tautan untuk membuat akun telah dikirim. Periksa kotak masuk dan folder spam.` };
@@ -109,16 +111,21 @@ export async function requestReset(_: AuthState, fd: FormData): Promise<AuthStat
   const acc = await getAccount(db);
   // Same reply whether or not the address matches, so the form can't be used to guess the login email.
   if (acc && email === acc.email && (await recentTokens(db, "reset", 15)) < MAX_LINKS) {
-    const token = await issueToken(db, "reset", email, RESET_MINUTES);
-    await trySendMail({
-      to: email,
-      subject: "Atur ulang password Jatahin!",
-      lines: [
-        "Kami menerima permintaan untuk mengatur ulang password akun Jatahin! Anda.",
-        `Tautan berlaku ${RESET_MINUTES} menit dan hanya dapat digunakan sekali. Abaikan email ini jika Anda tidak memintanya; password tidak akan berubah.`,
-      ],
-      link: { label: "Atur ulang password", url: `${await appUrl()}/reset-password?token=${token}` },
-    });
+    try {
+      const base = await appUrl();
+      const token = await issueToken(db, "reset", email, RESET_MINUTES);
+      await sendMail({
+        to: email,
+        subject: "Atur ulang password Jatahin!",
+        lines: [
+          "Kami menerima permintaan untuk mengatur ulang password akun Jatahin! Anda.",
+          `Tautan berlaku ${RESET_MINUTES} menit dan hanya dapat digunakan sekali. Abaikan email ini jika Anda tidak memintanya; password tidak akan berubah.`,
+        ],
+        link: { label: "Atur ulang password", url: `${base}/reset-password?token=${token}` },
+      });
+    } catch (e) {
+      console.error("Reset email not sent:", e);
+    }
   }
   return { message: `Jika ${email} terdaftar, tautan untuk mengatur ulang password telah dikirim. Periksa kotak masuk dan folder spam.` };
 }
