@@ -23,18 +23,19 @@ function useActive() {
   return (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 }
 
-/** The product mark, drawn inline so it follows the theme (ink tile, inverted in dark mode). */
+/** The product mark, drawn inline so it follows the theme: a mint tile with a black coin. */
 export function Mark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" aria-hidden className={cn("size-7 shrink-0", className)}>
       <rect width="64" height="64" rx="16" fill="var(--primary)" />
-      {/* A coin split into portions, one portion set aside: "jatah". */}
-      <circle cx="32" cy="32" r="18" fill="var(--on-primary)" />
-      <path d="M32 32V14a18 18 0 0 1 17.12 12.44Z" fill="var(--c-yellow)" />
-      <path d="M32 32V14M32 32l17.12-5.56M32 32 21.42 46.56" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" />
+      {/* A coin with one portion lifted out and set aside: "jatah". Same drawing as app/icon.svg. */}
+      <path d={COIN} fill="var(--on-primary)" />
+      <path d={PORTION} fill="var(--on-primary)" transform="translate(2.6 -3.6)" />
     </svg>
   );
 }
+const COIN = "M32 32 49.12 26.44A18 18 0 1 1 32 14Z";
+const PORTION = "M32 32V14a18 18 0 0 1 17.12 12.44Z";
 
 export function Sidebar() {
   const isActive = useActive();
@@ -83,7 +84,7 @@ function NavLink({ href, active, icon, children }: { href: string; active: boole
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex h-8 items-center gap-2.5 rounded-full px-3 text-sm transition-colors",
-        active ? "bg-brand-soft font-medium text-brand" : "text-ink-2 hover:bg-raised hover:text-ink",
+        active ? "bg-brand-soft font-medium text-brand-ink" : "text-ink-2 hover:bg-raised hover:text-ink",
       )}
     >
       {icon} {children}
@@ -114,7 +115,7 @@ export function BottomNav() {
 
 function BottomItem({ item: { href, short, icon: Icon }, active }: { item: (typeof items)[number]; active: boolean }) {
   return (
-    <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]", active ? "font-medium text-brand" : "text-muted")}>
+    <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[11px]", active ? "font-medium text-brand-ink" : "text-muted")}>
       <Icon className="size-5" strokeWidth={active ? 2 : 1.5} />
       {short}
     </Link>

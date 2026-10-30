@@ -6,8 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Jatahin!",
     start_url: "/",
     display: "standalone",
-    background_color: "#f4f6fa",
-    theme_color: "#f4f6fa",
+    background_color: "#f7f8f8",
+    theme_color: "#f7f8f8",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
     // Shown when the installed app's icon is held down. File names start with "icon" so the proxy serves them signed out.
     shortcuts: [

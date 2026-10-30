@@ -1,72 +1,81 @@
 @import "tailwindcss";
 
-/* Palette "Ink & Ocean": a cool ink-blue base with one brand blue for actions, and five category hues
-   (the validated chart slots) used as small marks. Light is the default; dark is set by <html data-theme="dark">.
-   Still no gradients, glass or resting shadows. */
+/* Palette "Mint Signal" (21st.dev, @serafimcloud): neutral ink on near-white, one mint for the primary action,
+   black-and-mint in dark mode. Mint (#51f0a8) is too light for text or thin marks on white, so light mode uses a
+   deeper mint (--brand-ink, --hue) there; dark mode uses the mint itself. Five category hues stay as small marks.
+   Light is the default; dark is set by <html data-theme="dark">. Still no gradients, glass or resting shadows. */
 :root {
   color-scheme: light;
-  --ground: #f4f6fa;
+  --ground: #f7f8f8;
   --surface: #ffffff;
-  --raised: #eef1f6;
-  --active: #e3e8f1;
-  --border: #e2e7ef;
-  --rule: #edf0f5;
-  --control: #cbd3df;
-  --ink: #0e1626;
-  --ink-2: #3a4456;
-  --muted: #5f6a7c;      /* 4.9:1 on white */
-  --brand: #2f5bd3;
-  --brand-strong: #244bb8;
-  --brand-soft: #e8eefc;
-  --on-brand: #ffffff;
+  --raised: #f1f3f3;
+  --active: #e7ebea;
+  --border: #e8eaea;
+  --rule: #f0f1f1;
+  --control: #d2d6d5;
+  --ink: #0a0a0a;
+  --ink-2: #333333;
+  --muted: #5c5c5c;      /* 6.7:1 on white */
+  --brand: #51f0a8;      /* fills only, with black on top */
+  --brand-strong: #3fe398;
+  --brand-soft: #e4fef3;
+  --brand-ink: #087a46;  /* mint for text and links: 5.4:1 on white */
+  --on-brand: #000000;
   --primary: var(--brand);
   --on-primary: var(--on-brand);
-  --hue: var(--brand);   /* the main data element in charts */
-  --grey-mark: #9aa6b8;
-  --pos: #11804c;
-  --neg: #cf2f3b;
-  --warn: #a15c07;
-  --pill-pos-bg: #ddf6e8; --pill-pos-ink: #0b4f2f;
-  --pill-neg-bg: #fde8ea; --pill-neg-ink: #8a1c25;
+  --hue: #0d9f5d;        /* the main data element in charts and bars: 3.4:1 on white */
+  --grey-mark: #a3a8a7;
+  --pos: #087a46;
+  --neg: #c2185b;
+  --warn: #9a5a06;
+  --pill-pos-bg: #dcfbea; --pill-pos-ink: #064a2b;
+  --pill-neg-bg: #ffe5ef; --pill-neg-ink: #8a0f3e;
   --pill-warn-bg: #fff4dc; --pill-warn-ink: #7a4505;
-  --pill-hue-bg: #e8eefc; --pill-hue-ink: #1d3f99;
-  --grid: #e7ebf2;
+  --pill-hue-bg: #e4fef3; --pill-hue-ink: #065a35;
+  --grid: #eceeee;
   --elevated: #ffffff;
-  --scrim: rgb(14 22 38 / 0.42);
-  --field: #f1f4f9;
+  --scrim: rgb(0 0 0 / 0.4);
+  --field: #f3f5f5;
   /* category hues (marks only, never text) */
-  --c-blue: #2a78d6; --c-orange: #eb6834; --c-aqua: #1baf7a; --c-yellow: #eda100; --c-pink: #e87ba4; --c-slate: #8b97a8;
+  --c-blue: #2a78d6; --c-orange: #eb6834; --c-aqua: #12a39a; --c-yellow: #eda100; --c-pink: #e87ba4; --c-slate: #8b9493;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ground: #0b0e14;
-  --surface: #121722;
-  --raised: #1a2030;
-  --active: #1f2840;
-  --border: #222a3a;
-  --rule: #1a2130;
-  --control: #39445a;
-  --ink: #eef2f8;
-  --ink-2: #c3cad6;
-  --muted: #8f99aa;
-  --brand: #7395f2;
-  --brand-strong: #8eaaf6;
-  --brand-soft: #1b2648;
-  --on-brand: #0b1020;
-  --grey-mark: #556074;
-  --pos: #45c486;
-  --neg: #f0707a;
+  --ground: #000000;
+  --surface: #0a0a0a;
+  --raised: #151516;
+  --active: #1e1f20;
+  --border: #222224;
+  --rule: #18181a;
+  --control: #3b3b3b;
+  --ink: #f0f0f0;
+  --ink-2: #c8c8c8;
+  --muted: #969696;
+  --brand: #51f0a8;
+  --brand-strong: #74f5bb;
+  --brand-soft: #0a2a1b;
+  --brand-ink: #51f0a8;
+  --on-brand: #000000;
+  --hue: #51f0a8;
+  --grey-mark: #5a5d5c;
+  --pos: #51f0a8;
+  --neg: #ff78a5;
   --warn: #e3a64a;
-  --pill-pos-bg: #12301f; --pill-pos-ink: #6fdca3;
-  --pill-neg-bg: #361a20; --pill-neg-ink: #f59aa2;
+  --pill-pos-bg: #093723; --pill-pos-ink: #74f5bb;
+  --pill-neg-bg: #3a1224; --pill-neg-ink: #ff9fc0;
   --pill-warn-bg: #33260f; --pill-warn-ink: #f0c070;
-  --pill-hue-bg: #1b2648; --pill-hue-ink: #a9c0fa;
-  --grid: #20283a;
-  --elevated: #171d2b;
-  --scrim: rgb(0 0 0 / 0.68);
-  --field: #1b2232;
-  --c-blue: #3987e5; --c-orange: #d95926; --c-aqua: #199e70; --c-yellow: #c98500; --c-pink: #d55181; --c-slate: #6b778a;
+  --pill-hue-bg: #093723; --pill-hue-ink: #74f5bb;
+  --grid: #1c1c1e;
+  --elevated: #121213;
+  --scrim: rgb(0 0 0 / 0.72);
+  --field: #161617;
+  --c-blue: #3987e5; --c-orange: #d95926; --c-aqua: #14958d; --c-yellow: #c98500; --c-pink: #d55181; --c-slate: #6b7372;
+}
+
+/* Mint Signal's card radius (1.4rem) on every rounded-2xl card; inner pieces keep their smaller steps. */
+@theme {
+  --radius-2xl: 1.4rem;
 }
 
 @theme inline {
@@ -86,6 +95,7 @@
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
   --color-on-brand: var(--on-brand);
   --color-elevated: var(--elevated);
   --color-field: var(--field);
@@ -93,8 +103,8 @@
   --color-pos: var(--pos);
   --color-neg: var(--neg);
   --color-warn: var(--warn);
-  --font-sans: var(--font-geist-sans), Inter, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 html { background: var(--ground); }
@@ -103,6 +113,8 @@ body {
   color: var(--ink);
   font-size: 14px;
   line-height: 20px;
+  /* Plus Jakarta Sans has a narrow space (about 0.19em); with the tightened headings words ran together. */
+  word-spacing: 0.06em;
   -webkit-tap-highlight-color: transparent;
 }
 

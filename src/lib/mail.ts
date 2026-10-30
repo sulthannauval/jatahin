@@ -29,11 +29,11 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 
 function render(m: Mail): { text: string; html: string } {
   const text = [...m.lines, ...(m.link ? ["", `${m.link.label}: ${m.link.url}`] : []), "", "— Jatahin!"].join("\n");
-  const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;color:#1b2330;max-width:480px">
+  const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;color:#0a0a0a;max-width:480px">
 <p style="font-size:17px;font-weight:600;margin:0 0 16px">Jatahin!</p>
 ${m.lines.map((l) => `<p style="margin:0 0 12px">${esc(l)}</p>`).join("\n")}
-${m.link ? `<p style="margin:20px 0"><a href="${esc(m.link.url)}" style="display:inline-block;background:#2f5bd3;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:500">${esc(m.link.label)}</a></p>
-<p style="margin:0;font-size:13px;color:#667085">Jika tombol tidak berfungsi, salin tautan ini:<br>${esc(m.link.url)}</p>` : ""}
+${m.link ? `<p style="margin:20px 0"><a href="${esc(m.link.url)}" style="display:inline-block;background:#51f0a8;color:#000;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:500">${esc(m.link.label)}</a></p>
+<p style="margin:0;font-size:13px;color:#5c5c5c">Jika tombol tidak berfungsi, salin tautan ini:<br>${esc(m.link.url)}</p>` : ""}
 </div>`;
   return { text, html };
 }

@@ -20,7 +20,7 @@ export async function WithToken({ purpose, searchParams, retry, children }: {
     return (
       <div className="space-y-4">
         <Notice tone="error">Tautan tidak valid, sudah digunakan, atau sudah kedaluwarsa.</Notice>
-        <Link href={retry.href} className="block text-center text-sm font-medium text-brand hover:underline">{retry.label}</Link>
+        <Link href={retry.href} className="block text-center text-sm font-medium text-brand-ink hover:underline">{retry.label}</Link>
       </div>
     );
   }
