@@ -15,7 +15,8 @@ export const loadAccount = cache(async (): Promise<Account | null> => {
 
 /** Signs this browser in with the account's current session version. */
 export async function startSession(version: number): Promise<void> {
-  (await cookies()).set(SESSION_COOKIE, await createSessionToken(version), sessionCookieOptions);
+  const { token, maxAge } = await createSessionToken(version);
+  (await cookies()).set(SESSION_COOKIE, token, { ...sessionCookieOptions, maxAge });
 }
 
 /**

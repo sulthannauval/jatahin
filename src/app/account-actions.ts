@@ -4,11 +4,12 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import { LOCK_MINUTES, bumpSessionVersion, isLockedOut, recordFailure, setPasswordHash } from "@/lib/auth/account";
+import { hashPassword } from "@/lib/auth/password";
+import { bumpSessionVersion, setPasswordHash } from "@/lib/auth/account";
 import { cancelTokens, issueToken, recentTokens } from "@/lib/auth/tokens";
 import { normalizeEmail, passwordProblem } from "@/lib/auth/policy";
-import { clientIp, requireSession, startSession } from "@/lib/auth/dal";
+import { requireSession, startSession } from "@/lib/auth/dal";
+import { confirmPassword } from "@/lib/auth/confirm";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { MAIL_FAILED, appUrl, mailMode, sendMail, trySendMail } from "@/lib/mail";
 import { dateTimeLabel } from "@/lib/dates";
@@ -16,16 +17,6 @@ import type { ActionResult } from "./actions";
 
 const VERIFY_MINUTES = 60;
 const fail = (error: string): ActionResult => ({ ok: false, error });
-
-/** Checks the current password, counting wrong guesses toward the sign-in lockout. */
-async function confirmPassword(hash: string, password: string): Promise<string | null> {
-  const db = await getDb();
-  const ip = await clientIp();
-  if (await isLockedOut(db, ip)) return `Terlalu banyak percobaan gagal. Coba lagi ${LOCK_MINUTES} menit lagi.`;
-  if (await verifyPassword(password, hash)) return null;
-  await recordFailure(db, ip);
-  return "Password saat ini salah.";
-}
 
 export async function changePassword(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const acc = await requireSession();

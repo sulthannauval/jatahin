@@ -245,6 +245,7 @@ export function ExportBackup({ txCount }: { txCount: number }) {
 export function ImportForm({ hasData }: { hasData: boolean }) {
   const [state, action, pending] = useFormAction(importSpreadsheet);
   const [name, setName] = useState("");
+  const [replace, setReplace] = useState(false);
   return (
     <form action={action} className="space-y-3">
       <label className="flex cursor-pointer items-center gap-3 rounded-full border border-dashed border-control px-4 py-4 transition-colors hover:border-ink-2 hover:bg-raised/50">
@@ -257,9 +258,16 @@ export function ImportForm({ hasData }: { hasData: boolean }) {
       </label>
       {hasData && (
         <label className="flex items-start gap-2 text-sm text-ink-2">
-          <input type="checkbox" name="replace" className="mt-0.5 size-4 accent-current" />
+          <input type="checkbox" name="replace" className="mt-0.5 size-4 accent-current" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
           <span>Hapus semua data lama dan ganti dengan isi file ini</span>
         </label>
+      )}
+      {hasData && replace && (
+        <div>
+          <Label htmlFor="import-pw">Password saat ini</Label>
+          <Input id="import-pw" name="password" type="password" autoComplete="current-password" required />
+          <p className="mt-1 text-xs text-muted">Diperlukan karena semua data lama akan dihapus.</p>
+        </div>
       )}
       <ErrorText state={state} />
       {state?.ok && <p className="rounded-xl bg-[var(--pill-pos-bg)] px-3 py-2 text-sm text-[var(--pill-pos-ink)]">{state.message}</p>}
