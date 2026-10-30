@@ -9,7 +9,8 @@ import {
 } from "../auth/account";
 import { cancelTokens, consumeToken, issueToken, peekToken, pendingEmailChange, recentTokens } from "../auth/tokens";
 import { normalizeEmail, passwordProblem } from "../auth/policy";
-import { createSessionToken, verifySessionToken } from "../auth/session";
+import { SignJWT } from "jose";
+import { createSessionToken, readSessionToken, renewSessionToken, verifySessionToken } from "../auth/session";
 
 async function freshDb(): Promise<DB> {
   const client = new PGlite();
@@ -88,10 +89,53 @@ describe("password and email rules", () => {
 });
 
 describe("session token", () => {
+  process.env.SESSION_SECRET ??= "x".repeat(40);
+  const DAY = 60 * 60 * 24;
+  const t0 = 1_800_000_000; // a fixed "now" in seconds
+
   it("carries the session version", async () => {
-    process.env.SESSION_SECRET ??= "x".repeat(40);
-    expect(await verifySessionToken(await createSessionToken(7))).toBe(7);
+    expect(await verifySessionToken((await createSessionToken(7)).token)).toBe(7);
     expect(await verifySessionToken("nope")).toBeNull();
     expect(await verifySessionToken(undefined)).toBeNull();
+  });
+
+  it("ends after 7 days without use", async () => {
+    const { token, maxAge } = await createSessionToken(1, undefined, t0);
+    expect(maxAge).toBe(7 * DAY);
+    expect(await readSessionToken(token, t0 + 7 * DAY - 1)).toMatchObject({ version: 1, signedInAt: t0 });
+    expect(await readSessionToken(token, t0 + 7 * DAY)).toBeNull();
+  });
+
+  it("is renewed at most once a day while in use, keeping the sign-in time", async () => {
+    const first = await createSessionToken(1, undefined, t0);
+    const s1 = (await readSessionToken(first.token, t0 + DAY - 1))!;
+    expect(await renewSessionToken(s1, t0 + DAY - 1)).toBeNull();
+
+    const renewed = (await renewSessionToken(s1, t0 + 6 * DAY))!;
+    expect(renewed.maxAge).toBe(7 * DAY);
+    // Still valid 12 days after sign-in, past the first token's expiry.
+    expect(await readSessionToken(renewed.token, t0 + 12 * DAY)).toMatchObject({ version: 1, signedInAt: t0 });
+  });
+
+  it("never lasts past 90 days from sign-in, however often it is renewed", async () => {
+    let { token } = await createSessionToken(1, undefined, t0);
+    for (let day = 6; day < 90; day += 6) {
+      const s = (await readSessionToken(token, t0 + day * DAY))!;
+      expect(s).not.toBeNull();
+      token = (await renewSessionToken(s, t0 + day * DAY))?.token ?? token;
+    }
+    const last = (await readSessionToken(token, t0 + 89 * DAY))!;
+    expect(last.expiresAt).toBe(t0 + 90 * DAY);
+    expect(await renewSessionToken(last, t0 + 89 * DAY)).toBeNull();
+    expect(await readSessionToken(token, t0 + 90 * DAY)).toBeNull();
+  });
+
+  it("accepts tokens from before sliding sessions, counting from their issue time", async () => {
+    const old = await new SignJWT({ sv: 3 }).setProtectedHeader({ alg: "HS256" }).setSubject("owner")
+      .setIssuedAt(t0).setExpirationTime(t0 + 30 * DAY).sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+    const s = (await readSessionToken(old, t0 + 2 * DAY))!;
+    expect(s).toMatchObject({ version: 3, signedInAt: t0 });
+    const renewed = (await renewSessionToken(s, t0 + 2 * DAY))!;
+    expect(await readSessionToken(renewed.token, t0 + 8 * DAY)).toMatchObject({ version: 3, signedInAt: t0 });
   });
 });

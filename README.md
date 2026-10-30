@@ -43,7 +43,7 @@ Importing data from the old spreadsheet (either works):
 
 **Pengaturan → Ekspor & impor → Unduh .xlsx** downloads `jatahin-backup-YYYY-MM-DD.xlsx`. It holds every transaction, category, savings pot, pot adjustment, budget and setting, one sheet per table, with the original IDs. The account (email and password hash) and sign-in records are left out.
 
-To restore, upload the file in the same section. The app tells a backup apart from the old MoneyFlows spreadsheet by its `Info` sheet. A restore replaces all finance data in one database transaction, so a file with a problem (for example an `ID kategori` that doesn't exist) is rejected with the sheet, row and column, and the current data stays as it was.
+To restore, upload the file in the same section. The app tells a backup apart from the old MoneyFlows spreadsheet by its `Info` sheet. A restore replaces all finance data in one database transaction, so a file with a problem (for example an `ID kategori` that doesn't exist) is rejected with the sheet, row and column, and the current data stays as it was. Replacing existing data asks for the current password first.
 
 The file opens in Excel or Google Sheets. Dates are stored as `YYYY-MM-DD` text so they can't shift between time zones. The name columns next to each ID are only there to make the file readable; a restore uses the IDs.
 
@@ -67,7 +67,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, tests and the 
 
 - One account only. It is created at `/daftar`, and only for the owner's address (`APP_USER_EMAIL`), confirmed by an email link. Once it exists, the page is closed.
 - Passwords are stored as scrypt hashes, never in plain text.
-- Sessions use a signed `HttpOnly`, `Secure`, `SameSite=Lax` cookie (`SESSION_SECRET`), valid for 30 days. Each session carries a version number, so changing or resetting the password, or choosing "sign out everywhere", ends sessions on other devices right away.
+- Sessions use a signed `HttpOnly`, `Secure`, `SameSite=Lax` cookie (`SESSION_SECRET`). A session ends after 7 days without opening the app and 90 days after signing in, whichever comes first; while the app is in use, the cookie is renewed at most once a day. Each session carries a version number, so changing or resetting the password, or choosing "sign out everywhere", ends sessions on other devices right away.
 - After 5 failed attempts from one IP (or 30 in total) within 15 minutes, sign-in is temporarily locked. Wrong passwords entered in account settings count too.
 - Email links (setup, reset, new email) are random, single-use and short-lived (30–60 minutes); only their hash is stored. The forgotten-password form gives the same reply for any address, and at most 3 links per kind are sent per 15 minutes.
 - All data access happens on the server, and every page and action re-checks the session.

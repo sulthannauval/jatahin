@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/dal";
+import { confirmPassword } from "@/lib/auth/confirm";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { budgets, categories, potAdjustments, pots, settings, transactions } from "@/lib/db/schema";
@@ -240,12 +241,17 @@ export async function saveSettings(_: ActionResult | null, fd: FormData): Promis
 // ── Import ────────────────────────────────────────────────────
 
 export async function importSpreadsheet(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  await requireSession();
+  const acc = await requireSession();
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return fail("Pilih file .xlsx terlebih dahulu.");
   if (file.size > 4 * 1024 * 1024) return fail("Ukuran file melebihi batas 4 MB.");
   if (!file.name.toLowerCase().endsWith(".xlsx")) return fail("Harus file .xlsx (Google Sheets → File → Download → Microsoft Excel).");
   const replace = fd.get("replace") === "on";
+  // Replacing wipes every transaction, so it needs the password, like changing the email or password.
+  if (replace) {
+    const err = await confirmPassword(acc.passwordHash, String(fd.get("password") ?? ""));
+    if (err) return fail(err);
+  }
   try {
     const { default: readExcelFile } = await import("read-excel-file/node");
     // read-excel-file types date cells as `typeof Date`; at runtime they are Date objects.
