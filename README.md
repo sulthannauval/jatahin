@@ -89,9 +89,12 @@ npm run reset-password
 
 It sets a new password (and optionally a new email), ends every session and clears the sign-in lockout.
 
-## Deployment plan
+## Deployment
 
-1. Connect this (private) repository to Vercel.
-2. Add PostgreSQL (Neon from the Storage tab, or Supabase through its connection pooler) as `DATABASE_URL`.
-3. Set `APP_USER_EMAIL`, a fresh `SESSION_SECRET` (never reuse the local one) and `RESEND_API_KEY`.
-4. Deploy (migrations run during the build), open `/daftar` to create the account, then restore a backup file (or import the old spreadsheet) from Settings.
+Vercel with a Neon Postgres database, both in Singapore (`vercel.json` sets the function region to `sin1`).
+
+1. Import this (private) repository in Vercel.
+2. Add Neon from the project's **Storage** tab, in the Singapore region (`aws-ap-southeast-1`), connected to the **Production** environment only. It sets `DATABASE_URL` (pooled, used by the app) and `DATABASE_URL_UNPOOLED` (direct, used for migrations).
+3. Set `APP_USER_EMAIL`, a fresh `SESSION_SECRET` (never reuse the local one) and `RESEND_API_KEY` for Production.
+4. Deploy. Production builds run the migrations first. Preview builds skip them, so an unmerged branch never changes the real database.
+5. Open `/daftar` to create the account, then restore a backup file (or import the old spreadsheet) from Settings.
