@@ -146,3 +146,5 @@ dialog.sheet[open] { animation: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { opacity: 0.55; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+/* Text fields with past-entry suggestions (datalist): the suggestions show while typing, no arrow needed. */
+input[list]::-webkit-calendar-picker-indicator { display: none !important; }

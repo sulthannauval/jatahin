@@ -9,6 +9,7 @@ This repository is mainly an archive and a personal reference. Feel free to borr
 ## What it does
 
 - **Daily transactions**: income and expenses by category, with search, filters and a table view that mirrors the old Daily Log sheet.
+- **Quick entry**: the installed app's icon offers "Catat pengeluaran" and "Catat pemasukan" when held down. The form suggests entries recorded at least twice in the last 90 days (with the latest amount), offers past notes while typing, and picks the category from the note.
 - **Monthly budget**: remaining or over-budget amounts per category. Spending in categories without a budget is shown separately and kept out of the remaining-budget figure.
 - **Savings and goals**: balance per savings pot, goals funded one after another, the monthly amount needed to reach each target date, and matching pot balances against the bank.
 - **Report**: monthly summary, the expense categories that changed most against last month, spending breakdown by type, and a six-month trend.

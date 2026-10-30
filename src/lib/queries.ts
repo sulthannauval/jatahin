@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, ilike, isNotNull, lt, or, sql } from "drizzle-
 import type { DB } from "./db";
 import { budgets, categories, potAdjustments, pots, settings, transactions } from "./db/schema";
 import { addMonths, monthStart, today as todayFn } from "./dates";
+import { frequentEntries } from "./quick";
 import {
   budgetLines,
   buildGoals,
@@ -185,7 +186,7 @@ export async function getRecentTransactions(db: DB, limit = 6, savingsOnly = fal
 
 /** Everything the "add transaction" form needs: categories sorted by how often they're used, pots, past descriptions. */
 export async function getFormOptions(db: DB) {
-  const [cats, potRows, usage, descs] = await Promise.all([
+  const [cats, potRows, usage, descs, recent] = await Promise.all([
     getCategories(db),
     getPots(db),
     db
@@ -200,7 +201,18 @@ export async function getFormOptions(db: DB) {
       .groupBy(transactions.categoryId, transactions.description)
       .orderBy(desc(sql`count(*)`))
       .limit(400),
+    db
+      .select({
+        id: transactions.id, categoryId: transactions.categoryId, potId: transactions.potId,
+        description: transactions.description, amount: transactions.amount, date: transactions.date,
+      })
+      .from(transactions)
+      .where(gte(transactions.date, sql`current_date - interval '90 days'`))
+      .orderBy(desc(transactions.date), desc(transactions.id))
+      .limit(2000),
   ]);
+  const liveCats = new Set(cats.map((c) => c.id));
+  const livePots = new Set(potRows.map((p) => p.id));
   const uses = new Map(usage.map((u) => [u.categoryId, u.n]));
   const sorted = [...cats].sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.sortOrder - b.sortOrder);
   const suggestions: Record<number, string[]> = {};
@@ -212,6 +224,9 @@ export async function getFormOptions(db: DB) {
     categories: sorted.map((c) => ({ id: c.id, name: c.name, kind: c.kind, role: c.role, group: c.group })),
     pots: potRows.map((p) => ({ id: p.id, name: p.name })),
     suggestions,
+    // For the "Sering dicatat" buttons and for picking the category from the note.
+    frequent: frequentEntries(recent, 12).filter((e) => liveCats.has(e.categoryId) && (e.potId === null || livePots.has(e.potId))),
+    history: descs.filter((d) => liveCats.has(d.categoryId)),
   };
 }
 
