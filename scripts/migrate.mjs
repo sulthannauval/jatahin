@@ -1,9 +1,16 @@
-// Applies SQL migrations in ./drizzle. Uses DATABASE_URL, or local PGlite when unset.
+// Applies SQL migrations in ./drizzle. Uses DATABASE_URL_UNPOOLED or DATABASE_URL, or local PGlite when unset.
 import "dotenv/config";
 import { config } from "dotenv";
 config({ path: ".env.local", override: true, quiet: true });
 
-const raw = process.env.DATABASE_URL;
+// On Vercel only production builds migrate, so a preview build of an unmerged branch can never change the real database.
+if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
+  console.log("• migrations skipped (Vercel preview build)");
+  process.exit(0);
+}
+
+// Neon's pooled URL suits the app; migrations use the direct connection when one is given.
+const raw = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 const pgliteDir = raw?.startsWith("pglite:") ? raw.slice(7) : raw ? null : (process.env.PGLITE_DIR ?? "./.data/pglite");
 const url = pgliteDir ? null : raw;
 const folder = "./drizzle";
