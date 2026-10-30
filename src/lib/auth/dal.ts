@@ -24,6 +24,8 @@ export async function startSession(version: number): Promise<void> {
  * "sign out everywhere" no longer matches the account's session version and is sent to sign in again.
  */
 export const requireSession = cache(async (): Promise<Account> => {
+  // Checking the expiry reads the clock, so this always runs at request time.
+  await connection();
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const version = await verifySessionToken(token);
   if (version === null) redirect("/login");
