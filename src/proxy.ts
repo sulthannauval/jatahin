@@ -16,7 +16,7 @@ export async function proxy(request: NextRequest) {
   if (PUBLIC.has(pathname)) return NextResponse.next();
   if (!ok) {
     const url = new URL("/login", request.url);
-    if (pathname !== "/") url.searchParams.set("next", pathname + search);
+    if (pathname !== "/" || search) url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
   // Using the app keeps the session alive: push the idle expiry forward (at most once a day).

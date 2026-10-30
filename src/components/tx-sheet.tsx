@@ -4,7 +4,8 @@ import { useActionState, useEffect, useMemo, useRef, useState, useTransition } f
 import { Calendar, Loader2, X } from "lucide-react";
 import { deleteTransaction, saveTransaction, type ActionResult } from "@/app/actions";
 import { addDays, dayLabel, today } from "@/lib/dates";
-import { groupDigits } from "@/lib/money";
+import { groupDigits, rp } from "@/lib/money";
+import { guessCategory } from "@/lib/quick";
 import { EXPENSE_GROUPS, INCOME_GROUPS } from "@/lib/finance";
 import type { FormOptions } from "@/lib/queries";
 import { cn } from "@/lib/cn";
@@ -22,6 +23,16 @@ export function TxSheet({ options }: { options: FormOptions }) {
     if (draft && !d.open) d.showModal();
     if (!draft && d.open) d.close();
   }, [draft]);
+
+  // The home-screen shortcuts open the app at /?catat=pengeluaran or /?catat=pemasukan.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const catat = url.searchParams.get("catat");
+    if (!catat) return;
+    url.searchParams.delete("catat");
+    history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    openTx({ kind: catat === "pemasukan" ? "income" : "expense" });
+  }, [openTx]);
 
   // "N" opens a new transaction from anywhere (unless typing).
   useEffect(() => {
@@ -51,6 +62,8 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const [amount, setAmount] = useState(draft.amount ? groupDigits(String(draft.amount)) : "");
   const [description, setDescription] = useState(draft.description ?? "");
   const [date, setDate] = useState(draft.date ?? today());
+  // True while the category was filled in from the note, so typing on can still change it.
+  const [autoCat, setAutoCat] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
   const again = useRef(false);
@@ -62,6 +75,13 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const needsPot = !!cat?.role;
   const suggestions = (categoryId && options.suggestions[categoryId]) || [];
   const groups = (kind === "expense" ? EXPENSE_GROUPS : INCOME_GROUPS) as readonly string[];
+  const catIds = useMemo(() => new Set(cats.map((c) => c.id)), [cats]);
+  const frequent = useMemo(() => options.frequent.filter((e) => catIds.has(e.categoryId)).slice(0, 6), [options.frequent, catIds]);
+  // Past notes for this kind, most used first, offered while typing.
+  const pastNotes = useMemo(
+    () => [...new Set(options.history.filter((h) => catIds.has(h.categoryId)).map((h) => h.description))].slice(0, 60),
+    [options.history, catIds],
+  );
   // Dropdown sections: the most-used first, then every category under its type.
   const catSections = useMemo<PickerSection[]>(() => {
     const byGroup = [...groups, ...new Set(cats.map((c) => c.group).filter((g) => !groups.includes(g)))]
@@ -94,7 +114,26 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   };
   const pick = (id: number) => {
     setCategoryId(id);
+    setAutoCat(false);
     if (!options.categories.find((c) => c.id === id)?.role) setPotId(null);
+  };
+  const typeNote = (text: string) => {
+    setDescription(text);
+    if (categoryId && !autoCat) return;
+    const guess = guessCategory(options.history, text, catIds);
+    if (guess === categoryId) return;
+    setCategoryId(guess ?? undefined);
+    setPotId(guess && options.categories.find((c) => c.id === guess)?.role ? undefined : null);
+    setAutoCat(guess !== null);
+  };
+  const applyEntry = (e: (typeof frequent)[number]) => {
+    setCategoryId(e.categoryId);
+    setPotId(e.potId);
+    setDescription(e.description);
+    setAmount(groupDigits(String(e.amount)));
+    setAutoCat(false);
+    // Ready to type over the amount if it differs this time.
+    requestAnimationFrame(() => amountRef.current?.select());
   };
 
   const t = today();
@@ -157,6 +196,29 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
           </span>
         </div>
 
+        {!isEdit && frequent.length > 0 && (
+          <div className="mb-3">
+            <p className="mb-1.5 text-xs text-muted">Sering dicatat</p>
+            <div className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5">
+              {frequent.map((e) => {
+                const name = e.description || options.categories.find((c) => c.id === e.categoryId)?.name;
+                const pot = e.potId !== null ? options.pots.find((p) => p.id === e.potId)?.name : null;
+                return (
+                  <button
+                    key={`${e.categoryId}-${e.potId}-${e.description}`}
+                    type="button"
+                    onClick={() => applyEntry(e)}
+                    className="flex shrink-0 cursor-pointer flex-col items-start rounded-xl border border-line px-3 py-1.5 text-left transition-colors hover:bg-field"
+                  >
+                    <span className="max-w-40 truncate text-[13px] text-ink">{name}{pot ? ` · ${pot}` : ""}</span>
+                    <span className="num text-xs text-muted">{rp(e.amount)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Details as a grouped list: label on the left, the value inline */}
         <div className="overflow-hidden rounded-2xl bg-field">
           <Picker label="Kategori" placeholder="Pilih kategori" sections={catSections} value={categoryId} onChange={pick} invalid={!!state && !state.ok && !categoryId} />
@@ -173,13 +235,19 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
               id="tx-desc"
               name="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => typeNote(e.target.value)}
+              list={isEdit ? undefined : "tx-notes"}
               placeholder="Opsional"
               autoComplete="off"
               maxLength={200}
               className="h-12 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted/70"
             />
           </label>
+          {!isEdit && (
+            <datalist id="tx-notes">
+              {pastNotes.map((d) => <option key={d} value={d} />)}
+            </datalist>
+          )}
           <div className="mx-4 h-px bg-elevated" />
           <div className="flex min-h-12 items-center gap-3 px-4">
             <span className="w-20 shrink-0 text-[13px] text-muted">Tanggal</span>
