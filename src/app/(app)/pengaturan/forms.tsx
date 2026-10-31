@@ -248,7 +248,7 @@ export function ExportBackup({ txCount }: { txCount: number }) {
       <p className="min-w-0 flex-1 text-sm">
         <span className="block font-medium">Backup data</span>
         <span className="block text-[13px] text-muted">
-          {txCount} transaksi beserta kategori, pos, penyesuaian, budget, dan pengaturan. Email dan password tidak disertakan.
+          {txCount} transaksi beserta kategori, kantong, pindah kantong, penyesuaian, jatah, rencana menabung, dan pengaturan. Email dan password tidak disertakan.
         </span>
       </p>
       {/* A plain link: the route returns a file, so there is nothing to prefetch. */}

@@ -21,9 +21,10 @@ export function CardHeader({ title, action, sub, as: H = "h2" }: { title: ReactN
   );
 }
 
-type BtnVariant = "primary" | "secondary" | "ghost" | "danger";
+type BtnVariant = "primary" | "ink" | "secondary" | "ghost" | "danger";
 const btn: Record<BtnVariant, string> = {
   primary: "bg-primary text-on-primary hover:opacity-90",
+  ink: "bg-ink text-surface hover:opacity-85",
   secondary: "bg-field text-ink hover:bg-active",
   ghost: "text-ink-2 hover:bg-field hover:text-ink",
   danger: "text-neg hover:bg-field",

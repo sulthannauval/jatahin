@@ -8,7 +8,7 @@ const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"
 
 export const metadata: Metadata = {
   title: { default: "Jatahin!", template: "%s · Jatahin!" },
-  description: "Jatahin! — Atur Jatah, Baru Belanja. Catatan keuangan pribadi: transaksi, budget, dan tabungan.",
+  description: "Jatahin! — Atur Jatah, Baru Belanja. Catatan keuangan pribadi: transaksi, jatah, dan kantong.",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "Jatahin!", statusBarStyle: "default" },
 };

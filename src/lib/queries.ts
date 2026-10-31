@@ -245,6 +245,15 @@ export async function getRecentActivity(db: DB, limit = 6, kantongOnly = false):
   return merge(txs, moved).slice(0, limit);
 }
 
+/** What happened in one kantong: moves in and out, and income or spending in it. Newest first. */
+export async function getPotActivity(db: DB, potId: number, limit = 30): Promise<ActivityRow[]> {
+  const [txs, moved] = await Promise.all([
+    txQuery(db).where(eq(transactions.potId, potId)).orderBy(desc(transactions.date), desc(transactions.createdAt)).limit(limit),
+    transferQuery(db).where(or(eq(transfers.fromPotId, potId), eq(transfers.toPotId, potId))).orderBy(desc(transfers.date), desc(transfers.createdAt)).limit(limit),
+  ]);
+  return merge(txs, moved).slice(0, limit);
+}
+
 /** Everything the "add transaction" form needs: categories sorted by how often they're used, pots, past descriptions. */
 export async function getFormOptions(db: DB) {
   const [cats, kantong, usage, descs, recent] = await Promise.all([
