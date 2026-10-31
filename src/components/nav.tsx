@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { ChartColumn, Home, ListOrdered, LogOut, Plus, Settings2, Target, Wallet } from "lucide-react";
+import { ChartNoAxesCombined, ChartPie, House, LogOut, Plus, ReceiptText, Settings2, WalletCards } from "lucide-react";
 import { logout } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { useTx } from "./tx-context";
 import { ThemeToggle } from "./theme-toggle";
 
+// Each icon is the thing itself: a receipt for entries, portions of a pie for jatah (like the mark),
+// a wallet holding cards for kantong, a rising line for reports.
 const items = [
-  { href: "/", label: "Ringkasan", short: "Ringkasan", icon: Home },
-  { href: "/transaksi", label: "Transaksi", short: "Transaksi", icon: ListOrdered },
-  { href: "/jatah", label: "Jatah", short: "Jatah", icon: Target },
-  { href: "/kantong", label: "Kantong", short: "Kantong", icon: Wallet },
-  { href: "/laporan", label: "Laporan", short: "Laporan", icon: ChartColumn },
+  { href: "/", label: "Beranda", short: "Beranda", icon: House },
+  { href: "/transaksi", label: "Transaksi", short: "Transaksi", icon: ReceiptText },
+  { href: "/jatah", label: "Jatah", short: "Jatah", icon: ChartPie },
+  { href: "/kantong", label: "Kantong", short: "Kantong", icon: WalletCards },
+  { href: "/laporan", label: "Laporan", short: "Laporan", icon: ChartNoAxesCombined },
   { href: "/pengaturan", label: "Pengaturan", short: "Atur", icon: Settings2 },
 ];
 
