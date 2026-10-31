@@ -77,8 +77,8 @@ export default async function KantongDetailPage({ params }: PageProps<"/kantong/
           </Card>
           <p className="mt-2.5 text-[13px] leading-5 text-muted">
             {goal.eta
-              ? "Dihitung dari rata-rata semua kantong bertarget, yang diisi satu per satu sesuai prioritas."
-              : "Belum ada uang masuk ke kantong bertarget dalam 3 bulan terakhir, jadi belum bisa diperkirakan."}
+              ? "Target diisi satu per satu sesuai prioritas."
+              : "Belum bisa diperkirakan: 3 bulan terakhir belum ada uang masuk."}
           </p>
         </section>
       )}

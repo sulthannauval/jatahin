@@ -95,7 +95,7 @@ export default async function KantongPage() {
         ) : (
           <Link href="/pengaturan#pos" className="block rounded-2xl border-[1.5px] border-dashed border-control px-5 py-4 text-[13px] leading-5 text-ink-2 transition-colors hover:bg-raised/50">
             <span className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-ink"><Plus className="size-4" strokeWidth={2} /> Buat kantong belanja</span>
-            Misalnya Makan atau Transport. Isi di awal bulan, bayar langsung dari situ.
+            Contoh: Makan, Transport. Isi di awal bulan, bayar dari situ.
           </Link>
         )}
       </section>
