@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Loader2, MoreHorizontal, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { deleteAdjustment, reconcilePot, type ActionResult } from "@/app/actions";
 import { parseBalance, rp } from "@/lib/money";
 import { shortDate } from "@/lib/dates";
@@ -25,34 +25,19 @@ export function ReconcileDialog({ open, onClose, potId, name, balance }: { open:
   );
 }
 
-/** One "⋯" per pot row: Setor, Ambil, Cocokkan saldo. */
-export function PotActions({ potId, name, balance }: { potId: number; name: string; balance: number }) {
+/**
+ * The things to do with one kantong: put money in, take it out, pay from it (spending kantong), match it with the bank.
+ * "Isi" is the one filled button.
+ */
+export function KantongActions({ potId, name, balance, spending }: { potId: number; name: string; balance: number; spending: boolean }) {
   const { openTx } = useTx();
-  const [menu, setMenu] = useState(false);
   const [matching, setMatching] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menu) return;
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node)) setMenu(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", close);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
-  }, [menu]);
-  const item = "flex h-10 w-full cursor-pointer items-center whitespace-nowrap rounded-xl px-3 text-left text-sm text-ink-2 transition-colors hover:bg-field hover:text-ink";
   return (
-    <div ref={box} className="relative">
-      <button onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} aria-label={`Aksi ${name}`} className="grid size-9 cursor-pointer place-items-center rounded-full text-muted transition-colors hover:bg-field hover:text-ink">
-        <MoreHorizontal className="size-4" strokeWidth={1.75} />
-      </button>
-      {menu && (
-        <div role="menu" className="absolute top-10 right-0 z-20 w-56 rounded-2xl border border-line bg-elevated p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.18)]">
-          <button role="menuitem" className={item} onClick={() => { setMenu(false); openTx({ kind: "transfer", fromPotId: null, toPotId: potId }); }}>Isi dari Kantong Utama</button>
-          <button role="menuitem" className={item} onClick={() => { setMenu(false); openTx({ kind: "transfer", fromPotId: potId, toPotId: null }); }}>Ambil ke Kantong Utama</button>
-          <button role="menuitem" className={item} onClick={() => { setMenu(false); setMatching(true); }}>Cocokkan saldo bank</button>
-        </div>
-      )}
+    <div className="flex flex-wrap gap-2">
+      <Button size="sm" onClick={() => openTx({ kind: "transfer", fromPotId: null, toPotId: potId })}>Isi</Button>
+      {spending && <Button size="sm" variant="secondary" onClick={() => openTx({ kind: "expense", potId })}>Bayar</Button>}
+      <Button size="sm" variant="secondary" onClick={() => openTx({ kind: "transfer", fromPotId: potId, toPotId: null })}>Ambil</Button>
+      <Button size="sm" variant="ghost" onClick={() => setMatching(true)}>Cocokkan saldo bank</Button>
       <ReconcileDialog open={matching} onClose={() => setMatching(false)} potId={potId} name={name} balance={balance} />
     </div>
   );

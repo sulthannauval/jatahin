@@ -151,7 +151,7 @@ export async function copyBudgets(month: string): Promise<ActionResult> {
     .where(sql`${budgets.month} < ${monthStart(month)}`)
     .orderBy(sql`${budgets.month} desc`)
     .limit(1);
-  if (!src) return fail("Tidak ada budget pada bulan sebelumnya.");
+  if (!src) return fail("Tidak ada jatah pada bulan sebelumnya.");
   const rows = await db.select().from(budgets).where(eq(budgets.month, src.month));
   await db
     .insert(budgets)
@@ -160,7 +160,7 @@ export async function copyBudgets(month: string): Promise<ActionResult> {
   const [plan] = await db.select().from(savingPlans).where(eq(savingPlans.month, src.month));
   if (plan) await db.insert(savingPlans).values({ month: monthStart(month), amount: plan.amount }).onConflictDoNothing();
   refresh();
-  return { ok: true, message: "Budget disalin" };
+  return { ok: true, message: "Jatah disalin" };
 }
 
 // ── Categories ────────────────────────────────────────────────
@@ -320,7 +320,7 @@ export async function importSpreadsheet(_: ActionResult | null, fd: FormData): P
       refresh();
       return {
         ok: true,
-        message: `Backup dipulihkan: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.adjustments} penyesuaian kantong, ${res.budgets} budget`,
+        message: `Backup dipulihkan: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.adjustments} penyesuaian kantong, ${res.budgets} jatah`,
       };
     }
     const { parseWorkbook } = await import("@/lib/import/parse");
@@ -329,7 +329,7 @@ export async function importSpreadsheet(_: ActionResult | null, fd: FormData): P
     const res = await applyImport(await getDb(), data, replace);
     refresh();
     const warn = data.warnings.length ? ` (${data.warnings.length} catatan: ${data.warnings.slice(0, 3).join(" ")})` : "";
-    return { ok: true, message: `Impor berhasil: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.budgets} budget${warn}` };
+    return { ok: true, message: `Impor berhasil: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.budgets} jatah${warn}` };
   } catch (e) {
     return fail(e instanceof Error ? e.message : "Import gagal.");
   }

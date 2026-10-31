@@ -21,7 +21,7 @@ export function KpiStrip({ items, className }: { items: Kpi[]; className?: strin
       className={cn(
         // The 1px gap over a border-coloured background draws the dividers, whatever the column count.
         "grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line",
-        items.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4",
+        items.length === 2 ? "" : items.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4",
         className,
       )}
     >

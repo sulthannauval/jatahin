@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { ChartColumn, Home, ListOrdered, LogOut, PiggyBank, Plus, Settings2, Target } from "lucide-react";
+import { ChartColumn, Home, ListOrdered, LogOut, Plus, Settings2, Target, Wallet } from "lucide-react";
 import { logout } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { useTx } from "./tx-context";
@@ -12,15 +12,24 @@ import { ThemeToggle } from "./theme-toggle";
 const items = [
   { href: "/", label: "Ringkasan", short: "Ringkasan", icon: Home },
   { href: "/transaksi", label: "Transaksi", short: "Transaksi", icon: ListOrdered },
-  { href: "/budget", label: "Budget", short: "Budget", icon: Target },
-  { href: "/tabungan", label: "Tabungan", short: "Tabungan", icon: PiggyBank },
+  { href: "/jatah", label: "Jatah", short: "Jatah", icon: Target },
+  { href: "/kantong", label: "Kantong", short: "Kantong", icon: Wallet },
   { href: "/laporan", label: "Laporan", short: "Laporan", icon: ChartColumn },
   { href: "/pengaturan", label: "Pengaturan", short: "Atur", icon: Settings2 },
 ];
 
-function useActive() {
-  const path = usePathname();
-  return (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+/** Which item is current. `path` null: not known yet (the shell rendered before the URL is read). */
+const activeIn = (path: string | null) => (href: string) => (path === null ? false : href === "/" ? path === "/" : path.startsWith(href));
+
+/**
+ * The navigation reads the URL, which a route with params (/kantong/[id]) only knows per request. The layout
+ * renders these with no item marked inside <Suspense>, then the URL-aware version.
+ */
+export function SidebarNav() {
+  return <Sidebar path={usePathname()} />;
+}
+export function BottomNavLive() {
+  return <BottomNav path={usePathname()} />;
 }
 
 /** The product mark, drawn inline so it follows the theme: a mint tile with a black coin. */
@@ -37,8 +46,8 @@ export function Mark({ className }: { className?: string }) {
 const COIN = "M32 32 49.12 26.44A18 18 0 1 1 32 14Z";
 const PORTION = "M32 32V14a18 18 0 0 1 17.12 12.44Z";
 
-export function Sidebar() {
-  const isActive = useActive();
+export function Sidebar({ path = null }: { path?: string | null }) {
+  const isActive = activeIn(path);
   const { openTx } = useTx();
   const [leaving, start] = useTransition();
   return (
@@ -93,8 +102,8 @@ function NavLink({ href, active, icon, children }: { href: string; active: boole
 }
 
 /** Phone: a bottom bar of five destinations; the centre button is the screen's one primary action. */
-export function BottomNav() {
-  const isActive = useActive();
+export function BottomNav({ path = null }: { path?: string | null }) {
+  const isActive = activeIn(path);
   const { openTx } = useTx();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Navigasi utama">
