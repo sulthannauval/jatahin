@@ -48,7 +48,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
       <KpiStrip
         items={[
           { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
-          { label: "Pengeluaran", value: rp(s.expense), delta: change(p.expense, s.expense, false), sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} dibayar dari tabungan` : `${prevName} ${rp(p.expense)}` },
+          { label: "Pengeluaran", value: rp(s.expense), delta: change(p.expense, s.expense, false), sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} pakai tabungan` : `${prevName} ${rp(p.expense)}` },
           { label: "Selisih", value: `${s.net > 0 ? "+" : ""}${rp(s.net)}`, tone: s.net < 0 ? "neg" : undefined, sub: "Pemasukan dikurangi pengeluaran" },
           {
             label: "Saving rate",

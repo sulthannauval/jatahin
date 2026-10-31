@@ -62,7 +62,7 @@ export function TrendChart({ data, current }: { data: Point[]; current: string }
         >
           <p className="mb-1 font-medium">{monthLabel(h.month)}</p>
           <Row label="Pemasukan" value={rp(h.income)} />
-          {!!h.withdraw && <Row label="Diambil dari tabungan" value={rp(h.withdraw)} />}
+          {!!h.withdraw && <Row label="Tabungan terambil" value={rp(h.withdraw)} />}
           <Row label="Pengeluaran" value={rp(h.expense)} />
           <Row label="Selisih" value={((h.net ?? h.income - h.expense) >= 0 ? "+" : "") + rp(h.net ?? h.income - h.expense)} />
         </div>

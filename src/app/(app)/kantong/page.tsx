@@ -36,7 +36,7 @@ export default async function KantongPage() {
           <ArrowRightLeft className="size-3.5" strokeWidth={2} />
         </AddTxButton>
       </div>
-      <p className="mt-0.5 mb-5 text-sm text-muted">Pisahkan uang sesuai tujuannya, seperti kantong di bank.</p>
+      <p className="mt-0.5 mb-5 text-sm text-muted">Pisahkan uang sesuai tujuannya.</p>
 
       {/* The answer, then the kantong everything is paid from */}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -48,7 +48,7 @@ export default async function KantongPage() {
         <Link href="/transaksi" className="group flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface px-5 py-5 transition-colors hover:bg-raised/50 sm:px-6">
           <div className="min-w-0">
             <p className="text-[15px] font-medium">Kantong Utama</p>
-            <p className="mt-0.5 text-[13px] leading-5 text-muted">Gaji masuk ke sini, belanja dibayar dari sini</p>
+            <p className="mt-0.5 text-[13px] leading-5 text-muted">Gaji masuk, belanja keluar dari sini</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className={cn("num text-xl font-bold tracking-[-0.02em]", s.utama < 0 && "text-neg")}>{rp(s.utama)}</span>
@@ -95,7 +95,7 @@ export default async function KantongPage() {
         ) : (
           <Link href="/pengaturan#pos" className="block rounded-2xl border-[1.5px] border-dashed border-control px-5 py-4 text-[13px] leading-5 text-ink-2 transition-colors hover:bg-raised/50">
             <span className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-ink"><Plus className="size-4" strokeWidth={2} /> Buat kantong belanja</span>
-            Contoh: Makan atau Transport. Isi di awal bulan, lalu bayar langsung dari kantong itu.
+            Misalnya Makan atau Transport. Isi di awal bulan, bayar langsung dari situ.
           </Link>
         )}
       </section>

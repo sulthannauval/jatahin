@@ -53,7 +53,7 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
         <h1 className="text-[22px] leading-8 font-medium tracking-[-0.01em] md:text-2xl">Jatah</h1>
         <MonthSwitcher month={month} path="/jatah" params={{ ubah: editing && d.budgetTotal > 0 ? "1" : undefined }} />
       </div>
-      <p className="mt-0.5 mb-5 text-sm text-muted">Berapa jatah belanja yang tersisa bulan ini.</p>
+      <p className="mt-0.5 mb-5 text-sm text-muted">Sisa uang belanja bulan ini.</p>
 
       {/* The answer */}
       {d.budgetTotal > 0 ? (
@@ -70,23 +70,20 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
           </p>
           <PlanBar className="mt-4" spent={split.planned} plan={d.budgetTotal} marker={isCurrent ? progress : undefined} hue />
           <p className="num mt-2.5 text-[13px] leading-5 text-muted">
-            Terpakai {rp(split.planned)} dari jatah {rp(d.budgetTotal)}
-            {left > 0 && isCurrent ? <>, sekitar <span className="text-ink-2">{rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari</span> untuk {daysLeft} hari tersisa</> : ""}.
-            {overIncome > 0 && <span className="block text-warn">Jatah dan rencana menabung {rp(overIncome)} di atas pemasukan {monthName(addMonths(month, -1))}.</span>}
+            Terpakai {rp(split.planned)} dari {rp(d.budgetTotal)}.
+            {left > 0 && isCurrent ? <> Aman dipakai <span className="text-ink-2">{rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari</span> sampai akhir bulan.</> : ""}
+            {overIncome > 0 && <span className="block text-warn">Jatah dan target menabung melebihi pemasukan {monthName(addMonths(month, -1))} sebesar {rp(overIncome)}.</span>}
           </p>
           {(d.savingPlan !== null || d.saved > 0 || d.summary.savingsOut > 0) && (
             <div className="mt-4 border-t border-rule pt-3.5 text-sm">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-muted">Rencana menabung</span>
-                <span className="num shrink-0 text-right">
-                  <span className={cn("font-bold", d.savedNet < 0 && "text-neg")}>{d.savedNet > 0 ? "+" : d.savedNet < 0 ? "−" : ""}{rp(Math.abs(d.savedNet))}</span>
-                  {d.savingPlan !== null && <span className="text-muted"> / {rp(d.savingPlan)}</span>}
-                </span>
+                <span className="text-muted">{d.savedNet < 0 ? "Tabungan berkurang" : "Berhasil menabung"}</span>
+                <span className={cn("num shrink-0 font-bold", d.savedNet < 0 && "text-neg")}>{rp(Math.abs(d.savedNet))}</span>
               </div>
               {/* The net figure only makes sense with what went in and what came back out */}
               <p className="num mt-1 text-[13px] leading-5 text-muted">
-                {d.summary.savingsOut > 0 ? <>Masuk {rp(d.saved)}, diambil lagi {rp(d.summary.savingsOut)}. </> : null}
-                {d.savingPlan !== null && d.savingPlan > 0 && (d.savedNet >= d.savingPlan ? <span className="text-pos">Rencana tercapai.</span> : <>Kurang {rp(d.savingPlan - d.savedNet)} dari rencana.</>)}
+                {d.summary.savingsOut > 0 ? <>Masuk {rp(d.saved)}, tabungan terambil {rp(d.summary.savingsOut)}. </> : null}
+                {d.savingPlan !== null && d.savingPlan > 0 && (d.savedNet >= d.savingPlan ? <span className="text-pos">Target {rp(d.savingPlan)} tercapai.</span> : <>Target {rp(d.savingPlan)}, kurang {rp(d.savingPlan - d.savedNet)}.</>)}
               </p>
             </div>
           )}
@@ -95,7 +92,7 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
         <Card className="flex flex-wrap items-center justify-between gap-4 p-6">
           <div>
             <p className="text-[15px] font-medium">Jatah {monthLabel(month)} belum diatur</p>
-            <p className="mt-0.5 text-sm text-muted">Isi jatah per kategori di bawah, atau salin dari bulan sebelumnya.</p>
+            <p className="mt-0.5 text-sm text-muted">Isi per kategori di bawah, atau salin dari bulan lalu.</p>
           </div>
           <CopyBudgetButton month={month} />
         </Card>
@@ -142,8 +139,8 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
               </summary>
               <div className="border-t border-rule">
                 <p className="px-4 pt-3 text-[13px] leading-5 text-muted sm:px-5">
-                  Pengeluaran pada kategori tanpa jatah bulan ini.
-                  {d.summary.savingsOut > 0 && <> Diambil dari kantong tabungan bulan ini: <span className="num text-ink-2">{rp(d.summary.savingsOut)}</span>.</>}
+                  Kategori tanpa jatah, tidak masuk hitungan sisa.
+                  {d.summary.savingsOut > 0 && <> Tabungan terambil bulan ini <span className="num text-ink-2">{rp(d.summary.savingsOut)}</span>.</>}
                 </p>
                 <ul>{split.unplannedLines.map((l) => <UnplannedRow key={l.categoryId} line={l} name={cats.get(l.categoryId)!.name} group={cats.get(l.categoryId)!.group} month={month} editing={false} />)}</ul>
               </div>
@@ -208,11 +205,11 @@ function EditAll({ d, cats, month, split }: { d: Awaited<ReturnType<typeof getDa
       </section>
 
       <section className="mt-8" aria-labelledby="saving-plan">
-        <SectionHeader id="saving-plan" title="Rencana menabung" note="bersih yang tetap di kantong tabungan, tidak termasuk jatah belanja" />
+        <SectionHeader id="saving-plan" title="Target menabung" note="terpisah dari jatah belanja" />
         <Card className="flex min-h-14 items-center justify-between gap-3 px-5 py-3">
-          <span className="text-sm">Bulan ini <span className="num text-muted">· bersih {d.savedNet < 0 ? "−" : ""}{rp(Math.abs(d.savedNet))}</span></span>
+          <span className="text-sm">Bulan ini <span className="num text-muted">· {d.savedNet < 0 ? `berkurang ${rp(-d.savedNet)}` : `berhasil ${rp(d.savedNet)}`}</span></span>
           <div className="w-32 shrink-0 sm:w-36">
-            <BudgetInput key={`${month}-plan-${d.savingPlan}`} month={month} categoryId={null} value={d.savingPlan ?? 0} label="Rencana menabung" />
+            <BudgetInput key={`${month}-plan-${d.savingPlan}`} month={month} categoryId={null} value={d.savingPlan ?? 0} label="Target menabung" />
           </div>
         </Card>
       </section>

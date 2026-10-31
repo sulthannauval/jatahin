@@ -70,7 +70,7 @@ function ReconcileForm({ potId, name, balance, onDone }: { potId: number; name: 
       <div className="mt-4">
         <Label htmlFor={`bank-${potId}`}>Saldo di bank saat ini</Label>
         <Input id={`bank-${potId}`} name="bankBalance" inputMode="decimal" autoComplete="off" placeholder="Contoh: 6.781,72" value={bank} onChange={(e) => setBank(e.target.value)} autoFocus required aria-describedby={`bank-hint-${potId}`} />
-        <p id={`bank-hint-${potId}`} className="mt-1.5 text-xs text-muted">Masukkan sesuai yang tertera di aplikasi bank. Nilai sen akan dibulatkan.</p>
+        <p id={`bank-hint-${potId}`} className="mt-1.5 text-xs text-muted">Sesuai angka di aplikasi bank. Sen dibulatkan.</p>
       </div>
 
       <div className="mt-4 flex min-h-11 items-center justify-between rounded-xl bg-raised/60 px-4 text-sm">
@@ -84,7 +84,7 @@ function ReconcileForm({ potId, name, balance, onDone }: { potId: number; name: 
         <div className="mt-4">
           <Label htmlFor={`note-${potId}`}>Catatan</Label>
           <Input id={`note-${potId}`} name="note" placeholder="Selisih bank" maxLength={120} />
-          <p className="mt-1.5 text-xs text-muted">Disimpan sebagai penyesuaian saldo kantong dan tidak dihitung sebagai pemasukan atau pengeluaran.</p>
+          <p className="mt-1.5 text-xs text-muted">Selisihnya disimpan sebagai penyesuaian, bukan pemasukan atau pengeluaran.</p>
         </div>
       )}
 

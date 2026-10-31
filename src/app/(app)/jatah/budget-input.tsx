@@ -62,7 +62,7 @@ export function CopyBudgetButton({ month }: { month: string }) {
       })}
     >
       {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Copy className="size-3.5" />}
-      Salin dari bulan sebelumnya
+      Salin dari bulan lalu
     </Button>
   );
 }

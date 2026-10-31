@@ -57,7 +57,7 @@ export default async function KantongDetailPage({ params }: PageProps<"/kantong/
         {goal && (
           <>
             <Progress className="mt-4 h-2" value={goal.progress} hue label={`Progress ${pot.name}`} />
-            <p className="num mt-2 text-[13px] text-muted">{goal.status === "done" ? "Target tercapai" : `${pct(goal.progress)} terkumpul · kurang ${rp(goal.remaining)}`}</p>
+            <p className="num mt-2 text-[13px] text-muted">{goal.status === "done" ? "Target tercapai" : `${pct(goal.progress)} terkumpul, kurang ${rp(goal.remaining)}`}</p>
           </>
         )}
         <div className="mt-5"><KantongActions potId={id} name={pot.name} balance={pot.balance} spending={spending} /></div>
@@ -69,16 +69,16 @@ export default async function KantongDetailPage({ params }: PageProps<"/kantong/
           <Card className="px-5 py-1 sm:px-6">
             <dl className="divide-y divide-rule text-sm">
               {need !== null && (
-                <Line label="Agar tepat waktu" value={`${rp(need)}/bulan`} />
+                <Line label="Perlu per bulan" value={`${rp(need)}/bulan`} />
               )}
               <Line label="Rata-rata 3 bulan terakhir" value={`${rp(goal.pace)}/bulan`} tone={need !== null && goal.pace < need ? "warn" : undefined} />
-              <Line label={waitsFor ? `Diisi setelah ${waitsFor.name}, perkiraan tercapai` : "Dengan rata-rata itu, tercapai"} value={goal.eta ? monthLabel(goal.eta) : "—"} />
+              <Line label={waitsFor ? `Perkiraan tercapai (setelah ${waitsFor.name})` : "Perkiraan tercapai"} value={goal.eta ? monthLabel(goal.eta) : "—"} />
             </dl>
           </Card>
           <p className="mt-2.5 text-[13px] leading-5 text-muted">
             {goal.eta
-              ? "Rata-rata dihitung dari uang yang masuk ke semua kantong bertarget. Target diisi satu per satu sesuai urutan prioritas."
-              : "Belum ada uang masuk ke kantong bertarget dalam tiga bulan terakhir, sehingga perkiraan belum tersedia."}
+              ? "Dihitung dari rata-rata semua kantong bertarget, yang diisi satu per satu sesuai prioritas."
+              : "Belum ada uang masuk ke kantong bertarget dalam 3 bulan terakhir, jadi belum bisa diperkirakan."}
           </p>
         </section>
       )}
@@ -86,7 +86,7 @@ export default async function KantongDetailPage({ params }: PageProps<"/kantong/
       <section className="mt-8" aria-labelledby="riwayat">
         <SectionHeader id="riwayat" title="Riwayat" note={mv ? `bulan ini masuk ${rp(mv.inflow)}, keluar ${rp(mv.outflow)}` : undefined} />
         <Card className="overflow-hidden">
-          {activity.length ? <TxList rows={activity} grouped={false} pot={id} /> : <EmptyState title="Belum ada uang yang masuk atau keluar">Tekan Isi untuk memindahkan uang dari Kantong Utama.</EmptyState>}
+          {activity.length ? <TxList rows={activity} grouped={false} pot={id} /> : <EmptyState title="Belum ada uang masuk atau keluar">Tekan Isi untuk menambah saldo.</EmptyState>}
         </Card>
         {adjustments.length > 0 && (
           <Card className="mt-3 overflow-hidden">
