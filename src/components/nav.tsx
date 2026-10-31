@@ -133,7 +133,7 @@ function BottomItem({ item: { href, short, icon: Icon }, active }: { item: (type
   );
 }
 
-/** Phone header: the product's mark and the settings link (the sidebar is folded away). */
+/** Phone header: the product's mark, then Laporan (which has no room in the bottom bar) and settings. */
 export function MobileBar() {
   return (
     <div className="mb-4 flex h-10 items-center justify-between md:hidden">
@@ -143,6 +143,9 @@ export function MobileBar() {
       </Link>
       <div className="flex items-center gap-1">
         <ThemeToggle compact />
+        <Link href="/laporan" aria-label="Laporan" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised">
+          <ChartNoAxesCombined className="size-5" strokeWidth={1.5} />
+        </Link>
         <Link href="/pengaturan" aria-label="Pengaturan" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised">
           <Settings2 className="size-5" strokeWidth={1.5} />
         </Link>

@@ -105,31 +105,30 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </section>
       )}
 
-      {/* The month in two figures, against last month */}
-      <KpiStrip
-        className="mt-6"
-        items={[
-          { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
-          {
-            label: "Pengeluaran",
-            value: rp(s.expense),
-            delta: change(p.expense, s.expense, false),
-            sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} pakai tabungan` : `${prevName} ${rp(p.expense)}`,
-          },
-        ]}
-      />
+      {/* The month in two figures, against last month; the full report is one tap away */}
+      <section className="mt-6" aria-labelledby="h-month">
+        <SectionHeader id="h-month" title="Bulan ini" more={<MoreLink href={`/laporan${qs}`}>Laporan</MoreLink>} />
+        <KpiStrip
+          items={[
+            { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
+            {
+              label: "Pengeluaran",
+              value: rp(s.expense),
+              delta: change(p.expense, s.expense, false),
+              sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} pakai tabungan` : `${prevName} ${rp(p.expense)}`,
+            },
+          ]}
+        />
+      </section>
 
       <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* The jatah, with what needs attention */}
         <section aria-labelledby="h-jatah">
-          <SectionHeader id="h-jatah" title="Jatah belanja" more={<MoreLink href={`/jatah${qs}`}>Lihat</MoreLink>} />
+          <SectionHeader id="h-jatah" title="Jatah belanja" note={over.length ? `${over.length} kategori lewat` : undefined} more={<MoreLink href={`/jatah${qs}`}>Lihat</MoreLink>} />
           <Card className="px-5 py-5">
             {d.budgetTotal > 0 ? (
               <>
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className={cn("num text-[22px] leading-8 font-bold tracking-[-0.02em]", left < 0 && "text-neg")}>{left >= 0 ? "Sisa" : "Lewat"} {rp(Math.abs(left))}</p>
-                  {over.length > 0 && <p className="shrink-0 text-[13px] text-muted">{over.length} kategori lewat jatah</p>}
-                </div>
+                <p className={cn("num text-[22px] leading-8 font-bold tracking-[-0.02em]", left < 0 && "text-neg")}>{left >= 0 ? "Sisa" : "Lewat"} {rp(Math.abs(left))}</p>
                 <PlanBar className="mt-3" spent={split.planned} plan={d.budgetTotal} marker={isCurrent ? monthProgress(month, t, days) : undefined} hue />
                 <p className="num mt-2.5 text-[13px] text-muted">
                   {rp(split.planned)} dari {rp(d.budgetTotal)}
