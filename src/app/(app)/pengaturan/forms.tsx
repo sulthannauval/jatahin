@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 
 type Cat = { id: number; name: string; kind: "income" | "expense"; group: string; archived: boolean };
 type Pot = {
-  id: number; name: string; note: string; target: number | null; targetDate: string | null; priority: number | null;
+  id: number; name: string; kind: "saving" | "spending"; note: string; target: number | null; targetDate: string | null; priority: number | null;
   openingBalance: number; openingDate: string | null; archived: boolean;
 };
 
@@ -136,10 +136,11 @@ export function CategoryManager({ categories }: { categories: Cat[] }) {
   );
 }
 
-// ── Pots & goals ──────────────────────────────────────────────
+// ── Kantong & goals ───────────────────────────────────────────
 
 export function PotManager({ pots }: { pots: (Pot & { balance: number })[] }) {
   const [editing, setEditing] = useState<Partial<Pot> | null>(null);
+  const kind = editing?.kind ?? "saving";
   const { toast } = useTx();
   const [, start] = useTransition();
   const close = () => setEditing(null);
@@ -153,7 +154,7 @@ export function PotManager({ pots }: { pots: (Pot & { balance: number })[] }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{p.name}</p>
               <p className="text-xs leading-5 text-muted">
-                {p.target ? `Goal #${p.priority ?? "–"} · target ${rp(p.target)}${p.targetDate ? ` · ${shortDate(p.targetDate)}` : ""}` : "Tanpa target"}
+                {p.kind === "spending" ? "Kantong belanja" : p.target ? `Tabungan · target #${p.priority ?? "–"} ${rp(p.target)}${p.targetDate ? ` · ${shortDate(p.targetDate)}` : ""}` : "Tabungan tanpa target"}
               </p>
             </div>
             <span className="num text-sm">{rp(p.balance)}</span>
@@ -168,21 +169,37 @@ export function PotManager({ pots }: { pots: (Pot & { balance: number })[] }) {
           </li>
         ))}
       </ul>
-      <Button variant="secondary" size="sm" className="mt-3" onClick={() => setEditing({})}><Plus className="size-3.5" /> Pos baru</Button>
+      <Button variant="secondary" size="sm" className="mt-3" onClick={() => setEditing({})}><Plus className="size-3.5" /> Kantong baru</Button>
 
-      <Dialog open={!!editing} onClose={close} title={editing?.id ? `Ubah ${editing.name}` : "Pos tabungan baru"}>
+      <Dialog open={!!editing} onClose={close} title={editing?.id ? `Ubah ${editing.name}` : "Kantong baru"}>
         {editing && (
           <form action={action} className="space-y-4">
             <input type="hidden" name="id" value={editing.id ?? ""} />
-            <div><Label htmlFor="pot-name">Nama pos</Label><Input id="pot-name" name="name" defaultValue={editing.name} required maxLength={60} /></div>
-            <fieldset className="rounded-xl border border-line p-3 pt-2">
-              <legend className="px-1 text-xs text-ink-2">Goal (kosongkan target untuk tabungan tanpa target)</legend>
+            <div><Label htmlFor="pot-name">Nama kantong</Label><Input id="pot-name" name="name" defaultValue={editing.name} required maxLength={60} /></div>
+            <input type="hidden" name="kind" value={kind} />
+            <div role="radiogroup" aria-label="Jenis kantong" className="grid grid-cols-2 gap-2">
+              {([["saving", "Tabungan", "Disimpan, bisa diberi target"], ["spending", "Belanja", "Dibelanjakan langsung"]] as const).map(([k, title, sub]) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={kind === k}
+                  onClick={() => setEditing({ ...editing, kind: k })}
+                  className={cn("cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors", kind === k ? "border-ink bg-surface" : "border-line text-ink-2 hover:bg-raised")}
+                >
+                  <span className="block text-sm font-medium">{title}</span>
+                  <span className="block text-xs text-muted">{sub}</span>
+                </button>
+              ))}
+            </div>
+            {kind === "saving" && <fieldset className="rounded-xl border border-line p-3 pt-2">
+              <legend className="px-1 text-xs text-ink-2">Target (kosongkan untuk tabungan tanpa target)</legend>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label htmlFor="pot-target">Target (Rp)</Label><MoneyInput id="pot-target" name="target" defaultValue={editing.target} placeholder="—" /></div>
                 <div><Label htmlFor="pot-prio">Urutan</Label><Input id="pot-prio" name="priority" type="number" min={1} max={99} defaultValue={editing.priority ?? ""} /></div>
                 <div className="col-span-2"><Label htmlFor="pot-date">Target tanggal</Label><Input id="pot-date" name="targetDate" type="date" defaultValue={editing.targetDate ?? ""} /></div>
               </div>
-            </fieldset>
+            </fieldset>}
             <fieldset className="rounded-xl border border-line p-3 pt-2">
               <legend className="px-1 text-xs text-ink-2">Saldo acuan (saldo sebelum mulai dicatat di aplikasi)</legend>
               <div className="grid grid-cols-2 gap-3">

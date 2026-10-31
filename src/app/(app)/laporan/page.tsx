@@ -47,8 +47,8 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
       {/* How the month went */}
       <KpiStrip
         items={[
-          { label: "Pemasukan", value: rp(s.realIncome), delta: change(p.realIncome, s.realIncome, true), sub: s.withdraw > 0 ? `Ditambah penarikan tabungan ${rp(s.withdraw)}` : `${prevName} ${rp(p.realIncome)}` },
-          { label: "Pengeluaran", value: rp(s.expense), delta: change(p.expense, s.expense, false), sub: `${prevName} ${rp(p.expense)}` },
+          { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
+          { label: "Pengeluaran", value: rp(s.expense), delta: change(p.expense, s.expense, false), sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} dibayar dari tabungan` : `${prevName} ${rp(p.expense)}` },
           { label: "Selisih", value: `${s.net > 0 ? "+" : ""}${rp(s.net)}`, tone: s.net < 0 ? "neg" : undefined, sub: "Pemasukan dikurangi pengeluaran" },
           {
             label: "Saving rate",
@@ -112,10 +112,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
           </div>
           <dl className="grid grid-cols-1 divide-y divide-line border-t border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
             <div className="flex items-baseline justify-between gap-3 px-5 py-4 sm:block">
-              <dt className="text-sm text-muted">
-                Rata-rata pemasukan
-                <span className="block text-xs">tanpa penarikan tabungan</span>
-              </dt>
+              <dt className="text-sm text-muted">Rata-rata pemasukan</dt>
               <dd className="num text-base font-bold sm:mt-1">{rp(avgIn)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3 px-5 py-4 sm:block">
@@ -125,7 +122,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
             <div className="flex items-baseline justify-between gap-3 px-5 py-4 sm:block">
               <dt className="text-sm text-muted">
                 Total selisih {months.length} bulan
-                <span className="block text-xs">termasuk penarikan tabungan</span>
+                <span className="block text-xs">pemasukan dikurangi pengeluaran</span>
               </dt>
               <dd className={cn("num text-base font-bold sm:mt-1", totalNet < 0 && "text-neg")}>{totalNet > 0 ? "+" : ""}{rp(totalNet)}</dd>
             </div>
@@ -140,7 +137,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
           Tabel saldo per bulan (format spreadsheet)
         </summary>
         <Card className="mt-3 overflow-hidden">
-          <p className="px-5 pt-4 text-sm text-muted">Sisa setiap bulan menjadi saldo awal bulan berikutnya.</p>
+          <p className="px-5 pt-4 text-sm text-muted">Saldo Kantong Utama. Sisa setiap bulan menjadi saldo awal bulan berikutnya.</p>
           <div className="mt-3"><TrendTable rows={d.table} month={month} /></div>
         </Card>
       </details>

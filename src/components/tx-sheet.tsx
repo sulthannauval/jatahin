@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Calendar, Loader2, X } from "lucide-react";
-import { deleteTransaction, saveTransaction, type ActionResult } from "@/app/actions";
+import { deleteTransaction, deleteTransfer, saveTransaction, saveTransfer, type ActionResult } from "@/app/actions";
 import { addDays, dayLabel, today } from "@/lib/dates";
 import { groupDigits, rp } from "@/lib/money";
 import { guessCategory } from "@/lib/quick";
@@ -58,7 +58,10 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const { closeTx, toast } = useTx();
   const [kind, setKind] = useState(draft.kind);
   const [categoryId, setCategoryId] = useState<number | undefined>(draft.categoryId);
-  const [potId, setPotId] = useState<number | null | undefined>(draft.potId);
+  // Kantong pickers use 0 for Kantong Utama, which has no row.
+  const [potId, setPotId] = useState<number>(draft.potId ?? 0);
+  const [fromPotId, setFromPotId] = useState<number | undefined>(draft.id || draft.fromPotId !== undefined ? draft.fromPotId ?? 0 : 0);
+  const [toPotId, setToPotId] = useState<number | undefined>(draft.id || draft.toPotId !== undefined ? draft.toPotId ?? 0 : undefined);
   const [amount, setAmount] = useState(draft.amount ? groupDigits(String(draft.amount)) : "");
   const [description, setDescription] = useState(draft.description ?? "");
   const [date, setDate] = useState(draft.date ?? today());
@@ -70,11 +73,19 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const amountRef = useRef<HTMLInputElement>(null);
   const isEdit = !!draft.id;
 
+  const isMove = kind === "transfer";
   const cats = useMemo(() => options.categories.filter((c) => c.kind === kind), [options.categories, kind]);
   const cat = options.categories.find((c) => c.id === categoryId);
-  const needsPot = !!cat?.role;
-  const suggestions = (categoryId && options.suggestions[categoryId]) || [];
-  const groups = (kind === "expense" ? EXPENSE_GROUPS : INCOME_GROUPS) as readonly string[];
+  const suggestions = (!isMove && categoryId && options.suggestions[categoryId]) || [];
+  const groups = (kind === "income" ? INCOME_GROUPS : EXPENSE_GROUPS) as readonly string[];
+  const kantongSections = useMemo<PickerSection[]>(() => {
+    const opt = (p: FormOptions["pots"][number]) => ({ id: p.id, name: p.name, hint: rp(p.balance) });
+    return [
+      { title: "Utama", options: [{ id: 0, name: "Kantong Utama", hint: rp(options.utama) }] },
+      { title: "Tabungan", options: options.pots.filter((p) => p.kind === "saving").map(opt) },
+      { title: "Belanja", options: options.pots.filter((p) => p.kind === "spending").map(opt) },
+    ].filter((sec) => sec.options.length);
+  }, [options.pots, options.utama]);
   const catIds = useMemo(() => new Set(cats.map((c) => c.id)), [cats]);
   const frequent = useMemo(() => options.frequent.filter((e) => catIds.has(e.categoryId)).slice(0, 6), [options.frequent, catIds]);
   // Past notes for this kind, most used first, offered while typing.
@@ -91,7 +102,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   }, [cats, groups]);
 
   const [state, action, pending] = useActionState(async (prev: ActionResult | null, fd: FormData) => {
-    const res = await saveTransaction(prev, fd);
+    const res = fd.get("kind") === "transfer" ? await saveTransfer(prev, fd) : await saveTransaction(prev, fd);
     if (res.ok) {
       toast(res.message ?? "Tersimpan");
       if (again.current) {
@@ -108,14 +119,13 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
     if (!isEdit) requestAnimationFrame(() => amountRef.current?.focus());
   }, [isEdit]);
 
-  const switchKind = (k: "income" | "expense") => {
+  const switchKind = (k: TxDraft["kind"]) => {
     setKind(k);
-    if (cat && cat.kind !== k) { setCategoryId(undefined); setPotId(undefined); }
+    if (cat && cat.kind !== k) setCategoryId(undefined);
   };
   const pick = (id: number) => {
     setCategoryId(id);
     setAutoCat(false);
-    if (!options.categories.find((c) => c.id === id)?.role) setPotId(null);
   };
   const typeNote = (text: string) => {
     setDescription(text);
@@ -123,12 +133,11 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
     const guess = guessCategory(options.history, text, catIds);
     if (guess === categoryId) return;
     setCategoryId(guess ?? undefined);
-    setPotId(guess && options.categories.find((c) => c.id === guess)?.role ? undefined : null);
     setAutoCat(guess !== null);
   };
   const applyEntry = (e: (typeof frequent)[number]) => {
     setCategoryId(e.categoryId);
-    setPotId(e.potId);
+    setPotId(e.potId ?? 0);
     setDescription(e.description);
     setAmount(groupDigits(String(e.amount)));
     setAutoCat(false);
@@ -143,17 +152,28 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   return (
     <form action={action} className="flex max-h-[inherit] flex-col">
       <input type="hidden" name="id" value={draft.id ?? ""} />
-      <input type="hidden" name="categoryId" value={categoryId ?? ""} />
-      <input type="hidden" name="potId" value={needsPot ? potId ?? "" : ""} />
+      <input type="hidden" name="kind" value={kind} />
+      {isMove ? (
+        <>
+          <input type="hidden" name="fromPotId" value={fromPotId || ""} />
+          <input type="hidden" name="toPotId" value={toPotId || ""} />
+        </>
+      ) : (
+        <>
+          <input type="hidden" name="categoryId" value={categoryId ?? ""} />
+          <input type="hidden" name="potId" value={potId || ""} />
+        </>
+      )}
 
       {/* Header: title centred, close on the right; the kind sits under it as a small pill track */}
       <div className="relative px-5 pt-5">
-        <h2 id="tx-title" className="text-center text-[15px] font-medium">{isEdit ? "Ubah transaksi" : "Catat transaksi"}</h2>
+        <h2 id="tx-title" className="text-center text-[15px] font-medium">{isMove ? (isEdit ? "Ubah pindah kantong" : "Pindah uang") : isEdit ? "Ubah transaksi" : "Catat transaksi"}</h2>
         <button type="button" onClick={closeTx} className="absolute top-3.5 right-3.5 grid size-9 cursor-pointer place-items-center rounded-full text-muted transition-colors hover:bg-field hover:text-ink" aria-label="Tutup">
           <X className="size-4" strokeWidth={1.75} />
         </button>
         <div className="mx-auto mt-4 flex w-fit rounded-full bg-field p-1" role="radiogroup" aria-label="Jenis">
-          {(["expense", "income"] as const).map((k) => (
+          {/* An entry stays what it is when edited: income and spending can swap, a move stays a move */}
+          {(isEdit ? (isMove ? (["transfer"] as const) : (["expense", "income"] as const)) : (["expense", "income", "transfer"] as const)).map((k) => (
             <button
               key={k}
               type="button"
@@ -165,7 +185,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
                 kind === k ? "bg-elevated text-ink shadow-[0_1px_2px_rgb(0_0_0/0.12),0_0_0_1px_var(--border)]" : "text-muted hover:text-ink",
               )}
             >
-              {k === "expense" ? "Pengeluaran" : "Pemasukan"}
+              {k === "expense" ? "Pengeluaran" : k === "income" ? "Pemasukan" : "Pindah"}
             </button>
           ))}
         </div>
@@ -196,7 +216,9 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
           </span>
         </div>
 
-        {!isEdit && frequent.length > 0 && (
+        {isMove && <p className="-mt-3 mb-4 text-center text-xs text-muted">Tidak dihitung sebagai pemasukan atau pengeluaran</p>}
+
+        {!isEdit && !isMove && frequent.length > 0 && (
           <div className="mb-3">
             <p className="mb-1.5 text-xs text-muted">Sering dicatat</p>
             <div className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5">
@@ -221,11 +243,22 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
 
         {/* Details as a grouped list: label on the left, the value inline */}
         <div className="overflow-hidden rounded-2xl bg-field">
-          <Picker label="Kategori" placeholder="Pilih kategori" sections={catSections} value={categoryId} onChange={pick} invalid={!!state && !state.ok && !categoryId} />
-          {needsPot && (
+          {isMove ? (
             <>
+              <Picker label="Dari" placeholder="Pilih kantong" searchable={false} sections={kantongSections} value={fromPotId} onChange={setFromPotId} />
               <div className="mx-4 h-px bg-elevated" />
-              <Picker label="Pos" placeholder="Pilih pos tabungan" searchable={false} sections={[{ title: "Pos tabungan", options: options.pots }]} value={potId} onChange={(id) => setPotId(id)} invalid={!!state && !state.ok && !potId} />
+              <Picker label="Ke" placeholder="Pilih kantong" searchable={false} sections={kantongSections} value={toPotId} onChange={setToPotId} invalid={!!state && !state.ok && toPotId === undefined} />
+            </>
+          ) : (
+            <>
+              <Picker label="Kategori" placeholder="Pilih kategori" sections={catSections} value={categoryId} onChange={pick} invalid={!!state && !state.ok && !categoryId} />
+              {/* Most entries use Kantong Utama, so this row only appears once other kantong exist */}
+              {options.pots.length > 0 && (
+                <>
+                  <div className="mx-4 h-px bg-elevated" />
+                  <Picker label={kind === "income" ? "Ke kantong" : "Dari kantong"} placeholder="Kantong Utama" searchable={false} sections={kantongSections} value={potId} onChange={setPotId} />
+                </>
+              )}
             </>
           )}
           <div className="mx-4 h-px bg-elevated" />
@@ -236,7 +269,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
               name="description"
               value={description}
               onChange={(e) => typeNote(e.target.value)}
-              list={isEdit ? undefined : "tx-notes"}
+              list={isEdit || isMove ? undefined : "tx-notes"}
               placeholder="Opsional"
               autoComplete="off"
               maxLength={200}
@@ -307,7 +340,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
             onClick={() => {
               if (!confirmDelete) return setConfirmDelete(true);
               startDelete(async () => {
-                const r = await deleteTransaction(draft.id!);
+                const r = isMove ? await deleteTransfer(draft.id!) : await deleteTransaction(draft.id!);
                 if (r.ok) { toast(r.message ?? "Dihapus"); closeTx(); } else toast(r.error, "error");
               });
             }}

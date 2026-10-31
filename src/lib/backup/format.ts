@@ -1,6 +1,7 @@
 // The Jatahin! backup workbook: one sheet per table, read back by header name. No DB access here.
 import { isDateKey, isMonthKey } from "../dates";
-import type { Kind, Role } from "../finance";
+import type { Kind, PotKind } from "../finance";
+import { splitLegacy, splitLegacyBudgets, type LegacyRole } from "../legacy";
 import type { Cell, Sheet as OutSheet } from "write-excel-file/node";
 
 type Value = string | number | boolean | Date | null | undefined;
@@ -8,22 +9,26 @@ type Value = string | number | boolean | Date | null | undefined;
 export type InSheet = { sheet: string; data: Value[][] };
 
 export const BACKUP_TITLE = "Jatahin! backup";
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
-export type BackupCategory = { id: number; name: string; kind: Kind; group: string; role: Role; sortOrder: number; archived: boolean };
+export type BackupCategory = { id: number; name: string; kind: Kind; group: string; sortOrder: number; archived: boolean };
 export type BackupPot = {
-  id: number; name: string; note: string; target: number | null; targetDate: string | null; priority: number | null;
+  id: number; name: string; kind: PotKind; note: string; target: number | null; targetDate: string | null; priority: number | null;
   openingBalance: number; openingDate: string | null; sortOrder: number; archived: boolean;
 };
 export type BackupTx = { id: number; date: string; categoryId: number; potId: number | null; description: string; amount: number; createdAt: Date };
+export type BackupTransfer = { id: number; date: string; fromPotId: number | null; toPotId: number | null; amount: number; note: string; createdAt: Date };
 export type BackupAdjustment = { id: number; potId: number; date: string; amount: number; note: string; createdAt: Date };
 export type BackupBudget = { month: string; categoryId: number; amount: number };
+export type BackupPlan = { month: string; amount: number };
 export type BackupData = {
   categories: BackupCategory[];
   pots: BackupPot[];
   transactions: BackupTx[];
+  transfers: BackupTransfer[];
   adjustments: BackupAdjustment[];
   budgets: BackupBudget[];
+  savingPlans: BackupPlan[];
   settings: { carryStartMonth: string | null; carryStartBalance: number };
 };
 
@@ -31,21 +36,27 @@ export type BackupData = {
 const SHEET = {
   info: "Info",
   categories: "Kategori",
-  pots: "Pos",
+  pots: "Kantong",
   transactions: "Transaksi",
-  adjustments: "Penyesuaian Pos",
+  transfers: "Pindah Kantong",
+  adjustments: "Penyesuaian Kantong",
   budgets: "Budget",
+  savingPlans: "Rencana Menabung",
   settings: "Pengaturan",
 } as const;
+/** Version 1 named kantong "pos" and had no transfers: savings were income and spending with a role. */
+const V1 = { pots: "Pos", adjustments: "Penyesuaian Pos", potId: "ID pos" } as const;
 
 const KIND: Record<Kind, string> = { expense: "Pengeluaran", income: "Pemasukan" };
-const ROLE: Record<NonNullable<Role>, string> = { saving_deposit: "Setoran tabungan", saving_withdraw: "Penarikan tabungan" };
+const POT_KIND: Record<PotKind, string> = { saving: "Tabungan", spending: "Belanja" };
+const ROLE: Record<NonNullable<LegacyRole>, string> = { saving_deposit: "Setoran tabungan", saving_withdraw: "Penarikan tabungan" };
 const SETTING = { carryStartMonth: "Mulai saldo bawaan (YYYY-MM)", carryStartBalance: "Saldo awal di bulan itu" };
 
 const money = (v: number | null): Cell => (v === null ? null : { value: v, type: Number, format: "#,##0" });
 // Dates stay as YYYY-MM-DD text so no spreadsheet app can shift them across time zones.
 const text = (v: string | null): Cell => (v === null || v === "" ? null : { value: v, type: String, format: "@" });
 const yesNo = (v: boolean) => (v ? "Ya" : "Tidak");
+const UTAMA = "Kantong Utama";
 const head = (labels: string[]): Cell[] => labels.map((value) => ({ value, fontWeight: "bold" as const }));
 
 /** Turns backup data into workbook sheets for write-excel-file. Name columns next to IDs are for reading only. */
@@ -64,31 +75,33 @@ export function toSheets(d: BackupData, exportedAt: Date): OutSheet<Buffer>[] {
         ["Versi format", BACKUP_VERSION],
         ["Diekspor", text(exportedAt.toISOString())],
         ["Kategori", d.categories.length],
-        ["Pos", d.pots.length],
+        ["Kantong", d.pots.length],
         ["Transaksi", d.transactions.length],
-        ["Penyesuaian pos", d.adjustments.length],
+        ["Pindah kantong", d.transfers.length],
+        ["Penyesuaian kantong", d.adjustments.length],
         ["Budget", d.budgets.length],
+        ["Rencana menabung", d.savingPlans.length],
         [],
         ["Catatan", "Impor file ini di Pengaturan → Ekspor & impor untuk memulihkan data. Kolom ID menghubungkan antar sheet, jangan diubah."],
       ],
     },
     {
       sheet: SHEET.categories,
-      columns: w(6, 28, 14, 14, 20, 8, 11),
+      columns: w(6, 28, 14, 14, 8, 11),
       stickyRowsCount: 1,
       data: [
-        head(["ID", "Nama", "Jenis", "Grup", "Peran", "Urutan", "Diarsipkan"]),
-        ...d.categories.map((c) => [c.id, c.name, KIND[c.kind], c.group, c.role ? ROLE[c.role] : null, c.sortOrder, yesNo(c.archived)]),
+        head(["ID", "Nama", "Jenis", "Grup", "Urutan", "Diarsipkan"]),
+        ...d.categories.map((c) => [c.id, c.name, KIND[c.kind], c.group, c.sortOrder, yesNo(c.archived)]),
       ],
     },
     {
       sheet: SHEET.pots,
-      columns: w(6, 24, 30, 16, 14, 10, 16, 14, 8, 11),
+      columns: w(6, 24, 12, 30, 16, 14, 10, 16, 14, 8, 11),
       stickyRowsCount: 1,
       data: [
-        head(["ID", "Nama", "Catatan", "Target", "Tanggal target", "Prioritas", "Saldo acuan", "Tanggal acuan", "Urutan", "Diarsipkan"]),
+        head(["ID", "Nama", "Jenis kantong", "Catatan", "Target", "Tanggal target", "Prioritas", "Saldo acuan", "Tanggal acuan", "Urutan", "Diarsipkan"]),
         ...d.pots.map((p) => [
-          p.id, p.name, text(p.note), money(p.target), text(p.targetDate), p.priority, money(p.openingBalance), text(p.openingDate), p.sortOrder, yesNo(p.archived),
+          p.id, p.name, POT_KIND[p.kind], text(p.note), money(p.target), text(p.targetDate), p.priority, money(p.openingBalance), text(p.openingDate), p.sortOrder, yesNo(p.archived),
         ]),
       ],
     },
@@ -97,7 +110,7 @@ export function toSheets(d: BackupData, exportedAt: Date): OutSheet<Buffer>[] {
       columns: w(7, 12, 12, 13, 26, 8, 20, 34, 16, 26),
       stickyRowsCount: 1,
       data: [
-        head(["ID", "Tanggal", "ID kategori", "Jenis", "Kategori", "ID pos", "Pos", "Keterangan", "Nominal", "Dicatat"]),
+        head(["ID", "Tanggal", "ID kategori", "Jenis", "Kategori", "ID kantong", "Kantong", "Keterangan", "Nominal", "Dicatat"]),
         ...d.transactions.map((t) => [
           t.id, text(t.date), t.categoryId, KIND[catKind.get(t.categoryId) ?? "expense"], catName.get(t.categoryId) ?? null,
           t.potId, t.potId === null ? null : potName.get(t.potId) ?? null, text(t.description), money(t.amount), text(t.createdAt.toISOString()),
@@ -105,11 +118,23 @@ export function toSheets(d: BackupData, exportedAt: Date): OutSheet<Buffer>[] {
       ],
     },
     {
-      sheet: SHEET.adjustments,
-      columns: w(7, 8, 20, 12, 16, 34, 26),
+      sheet: SHEET.transfers,
+      columns: w(7, 12, 9, 20, 9, 20, 16, 34, 26),
       stickyRowsCount: 1,
       data: [
-        head(["ID", "ID pos", "Pos", "Tanggal", "Nominal", "Catatan", "Dicatat"]),
+        head(["ID", "Tanggal", "ID dari", "Dari", "ID ke", "Ke", "Nominal", "Catatan", "Dicatat"]),
+        ...d.transfers.map((t) => [
+          t.id, text(t.date), t.fromPotId, potName.get(t.fromPotId ?? -1) ?? UTAMA, t.toPotId, potName.get(t.toPotId ?? -1) ?? UTAMA,
+          money(t.amount), text(t.note), text(t.createdAt.toISOString()),
+        ]),
+      ],
+    },
+    {
+      sheet: SHEET.adjustments,
+      columns: w(7, 10, 20, 12, 16, 34, 26),
+      stickyRowsCount: 1,
+      data: [
+        head(["ID", "ID kantong", "Kantong", "Tanggal", "Nominal", "Catatan", "Dicatat"]),
         ...d.adjustments.map((a) => [a.id, a.potId, potName.get(a.potId) ?? null, text(a.date), money(a.amount), text(a.note), text(a.createdAt.toISOString())]),
       ],
     },
@@ -121,6 +146,12 @@ export function toSheets(d: BackupData, exportedAt: Date): OutSheet<Buffer>[] {
         head(["Bulan", "ID kategori", "Kategori", "Nominal"]),
         ...d.budgets.map((b) => [text(b.month), b.categoryId, catName.get(b.categoryId) ?? null, money(b.amount)]),
       ],
+    },
+    {
+      sheet: SHEET.savingPlans,
+      columns: w(10, 16),
+      stickyRowsCount: 1,
+      data: [head(["Bulan", "Nominal"]), ...d.savingPlans.map((b) => [text(b.month), money(b.amount)])],
     },
     {
       sheet: SHEET.settings,
@@ -189,24 +220,32 @@ function table(sheets: InSheet[], name: string, columns: string[]) {
   });
 }
 
-/** Reads a backup workbook. Throws an Indonesian message naming the sheet, row and column of the first problem. */
+/**
+ * Reads a backup workbook. Throws an Indonesian message naming the sheet, row and column of the first problem.
+ * Version 1 backups (savings as income and spending with a role) are turned into moves between kantong.
+ */
 export function parseBackup(sheets: InSheet[]): BackupData {
   const version = Number(cellStr(sheets.find((s) => s.sheet === SHEET.info)?.data[1]?.[1]));
-  if (version !== BACKUP_VERSION) throw new BackupError(`Versi format backup ${version || "?"} tidak didukung.`);
+  if (version !== 1 && version !== BACKUP_VERSION) throw new BackupError(`Versi format backup ${version || "?"} tidak didukung.`);
+  const v1 = version === 1;
+  const potSheet = v1 ? V1.pots : SHEET.pots;
+  const potIdCol = v1 ? V1.potId : "ID kantong";
+  const potWhat = v1 ? "pos" : "kantong";
 
   const YN = { true: "Ya", false: "Tidak" } as const;
-  const categories = table(sheets, SHEET.categories, ["ID", "Nama", "Jenis", "Grup", "Peran", "Urutan", "Diarsipkan"]).map((r) => ({
+  const categories = table(sheets, SHEET.categories, ["ID", "Nama", "Jenis", "Grup", ...(v1 ? ["Peran"] : []), "Urutan", "Diarsipkan"]).map((r) => ({
     id: r.int("ID"),
     name: r.str("Nama") || r.bad("Nama", "tidak boleh kosong"),
     kind: r.pick("Jenis", KIND)!,
     group: r.str("Grup") || "Lainnya",
-    role: r.pick("Peran", ROLE, "optional"),
+    role: v1 ? r.pick("Peran", ROLE, "optional") : null,
     sortOrder: r.int("Urutan"),
     archived: r.pick("Diarsipkan", YN) === "true",
   }));
-  const pots = table(sheets, SHEET.pots, ["ID", "Nama", "Catatan", "Target", "Tanggal target", "Prioritas", "Saldo acuan", "Tanggal acuan", "Urutan", "Diarsipkan"]).map((r) => ({
+  const pots = table(sheets, potSheet, ["ID", "Nama", ...(v1 ? [] : ["Jenis kantong"]), "Catatan", "Target", "Tanggal target", "Prioritas", "Saldo acuan", "Tanggal acuan", "Urutan", "Diarsipkan"]).map((r) => ({
     id: r.int("ID"),
     name: r.str("Nama") || r.bad("Nama", "tidak boleh kosong"),
+    kind: v1 ? ("saving" as const) : r.pick("Jenis kantong", POT_KIND)!,
     note: r.str("Catatan"),
     target: r.intOrNull("Target"),
     targetDate: r.dateOrNull("Tanggal target"),
@@ -230,30 +269,32 @@ export function parseBackup(sheets: InSheet[]): BackupData {
   };
   unique(categories, (c) => c.id, "ID kategori");
   unique(categories, (c) => `${KIND[c.kind]} ${c.name}`, "Kategori");
-  unique(pots, (p) => p.id, "ID pos");
-  unique(pots, (p) => p.name, "Pos");
+  unique(pots, (p) => p.id, `ID ${potWhat}`);
+  unique(pots, (p) => p.name, v1 ? "Pos" : "Kantong");
+  const knownPot = (r: { bad: (l: string, w: string) => never }, label: string, id: number | null) => {
+    if (id !== null && !potIds.has(id)) r.bad(label, `${potWhat} ${id} tidak ada di sheet ${potSheet}`);
+    return id;
+  };
 
-  const transactions = table(sheets, SHEET.transactions, ["ID", "Tanggal", "ID kategori", "ID pos", "Keterangan", "Nominal", "Dicatat"]).map((r) => {
+  const allTxs = table(sheets, SHEET.transactions, ["ID", "Tanggal", "ID kategori", potIdCol, "Keterangan", "Nominal", "Dicatat"]).map((r) => {
     const categoryId = r.int("ID kategori");
     if (!catIds.has(categoryId)) r.bad("ID kategori", `kategori ${categoryId} tidak ada di sheet Kategori`);
-    const potId = r.intOrNull("ID pos");
-    if (potId !== null && !potIds.has(potId)) r.bad("ID pos", `pos ${potId} tidak ada di sheet Pos`);
+    const potId = knownPot(r, potIdCol, r.intOrNull(potIdCol));
     const amount = r.int("Nominal");
     if (amount <= 0) r.bad("Nominal", "harus lebih dari 0");
     return { id: r.int("ID"), date: r.date("Tanggal"), categoryId, potId, description: r.str("Keterangan"), amount, createdAt: r.time("Dicatat") };
   });
-  unique(transactions, (t) => t.id, "ID transaksi");
+  unique(allTxs, (t) => t.id, "ID transaksi");
 
-  const adjustments = table(sheets, SHEET.adjustments, ["ID", "ID pos", "Tanggal", "Nominal", "Catatan", "Dicatat"]).map((r) => {
-    const potId = r.int("ID pos");
-    if (!potIds.has(potId)) r.bad("ID pos", `pos ${potId} tidak ada di sheet Pos`);
+  const adjustments = table(sheets, v1 ? V1.adjustments : SHEET.adjustments, ["ID", potIdCol, "Tanggal", "Nominal", "Catatan", "Dicatat"]).map((r) => {
+    const potId = knownPot(r, potIdCol, r.int(potIdCol))!;
     const amount = r.int("Nominal");
     if (amount === 0) r.bad("Nominal", "tidak boleh 0");
     return { id: r.int("ID"), potId, date: r.date("Tanggal"), amount, note: r.str("Catatan"), createdAt: r.time("Dicatat") };
   });
-  unique(adjustments, (a) => a.id, "ID penyesuaian pos");
+  unique(adjustments, (a) => a.id, `ID penyesuaian ${potWhat}`);
 
-  const budgets = table(sheets, SHEET.budgets, ["Bulan", "ID kategori", "Nominal"]).map((r) => {
+  const allBudgets = table(sheets, SHEET.budgets, ["Bulan", "ID kategori", "Nominal"]).map((r) => {
     const month = r.str("Bulan");
     if (!isMonthKey(month)) r.bad("Bulan", "harus berformat YYYY-MM");
     const categoryId = r.int("ID kategori");
@@ -262,7 +303,44 @@ export function parseBackup(sheets: InSheet[]): BackupData {
     if (amount < 0) r.bad("Nominal", "tidak boleh negatif");
     return { month, categoryId, amount };
   });
-  unique(budgets, (b) => `${b.month} kategori ${b.categoryId}`, "Budget");
+  unique(allBudgets, (b) => `${b.month} kategori ${b.categoryId}`, "Budget");
+
+  let transactions: BackupTx[], transfers: BackupTransfer[], budgets: BackupBudget[], savingPlans: BackupPlan[];
+  let cats = categories;
+  if (v1) {
+    const role = new Map(categories.map((c) => [c.id, c.role]));
+    const split = splitLegacy<number, (typeof allTxs)[number]>(allTxs, (t) => role.get(t.categoryId) ?? null);
+    transactions = split.kept;
+    transfers = split.transfers.map((t, i) => ({
+      id: i + 1, date: t.source.date, fromPotId: t.fromPotId, toPotId: t.toPotId, amount: t.source.amount, note: t.source.description, createdAt: t.source.createdAt,
+    }));
+    const b = splitLegacyBudgets(allBudgets, (x) => role.get(x.categoryId) === "saving_deposit");
+    budgets = b.kept;
+    savingPlans = b.plans;
+    // Savings categories go once nothing uses them, as the database migration does.
+    const used = new Set(transactions.map((t) => t.categoryId));
+    cats = categories.filter((c) => !c.role || used.has(c.id));
+  } else {
+    transactions = allTxs;
+    budgets = allBudgets;
+    transfers = table(sheets, SHEET.transfers, ["ID", "Tanggal", "ID dari", "ID ke", "Nominal", "Catatan", "Dicatat"]).map((r) => {
+      const fromPotId = knownPot(r, "ID dari", r.intOrNull("ID dari"));
+      const toPotId = knownPot(r, "ID ke", r.intOrNull("ID ke"));
+      if (fromPotId === toPotId) r.bad("ID ke", "kantong asal dan tujuan tidak boleh sama");
+      const amount = r.int("Nominal");
+      if (amount <= 0) r.bad("Nominal", "harus lebih dari 0");
+      return { id: r.int("ID"), date: r.date("Tanggal"), fromPotId, toPotId, amount, note: r.str("Catatan"), createdAt: r.time("Dicatat") };
+    });
+    unique(transfers, (t) => t.id, "ID pindah kantong");
+    savingPlans = table(sheets, SHEET.savingPlans, ["Bulan", "Nominal"]).map((r) => {
+      const month = r.str("Bulan");
+      if (!isMonthKey(month)) r.bad("Bulan", "harus berformat YYYY-MM");
+      const amount = r.int("Nominal");
+      if (amount < 0) r.bad("Nominal", "tidak boleh negatif");
+      return { month, amount };
+    });
+    unique(savingPlans, (b) => b.month, "Rencana menabung bulan");
+  }
 
   const set = sheets.find((s) => s.sheet === SHEET.settings);
   if (!set) throw new BackupError(`Sheet "${SHEET.settings}" tidak ditemukan di file backup.`);
@@ -272,5 +350,9 @@ export function parseBackup(sheets: InSheet[]): BackupData {
   const carryStartBalance = Number(setting(SETTING.carryStartBalance) || 0);
   if (!Number.isSafeInteger(carryStartBalance)) throw new BackupError(`Sheet ${SHEET.settings}: ${SETTING.carryStartBalance} harus berupa bilangan bulat.`);
 
-  return { categories, pots, transactions, adjustments, budgets, settings: { carryStartMonth, carryStartBalance } };
+  return {
+    categories: cats.map((c) => ({ id: c.id, name: c.name, kind: c.kind, group: c.group, sortOrder: c.sortOrder, archived: c.archived })),
+    pots, transactions, transfers, adjustments, budgets, savingPlans,
+    settings: { carryStartMonth, carryStartBalance },
+  };
 }

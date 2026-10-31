@@ -55,7 +55,7 @@ describe("weekly backup email", () => {
     const now = new Date("2026-11-01T23:00:00Z"); // Monday 06:00 WIB
     const mail = weeklyBackupMail("me@example.com", await backupFile(db, now), now);
     expect(mail.subject).toBe("Backup mingguan Jatahin! 2 November 2026");
-    expect(mail.lines[1]).toBe("Isi: 1 transaksi, 1 kategori, 0 pos, 0 penyesuaian pos, dan 0 budget.");
+    expect(mail.lines[1]).toBe("Isi: 1 transaksi, 0 pindah kantong, 1 kategori, 0 kantong, 0 penyesuaian kantong, dan 0 budget.");
     expect(mail.attachments[0].filename).toBe("jatahin-backup-2026-11-02.xlsx");
 
     const sheets = (await readExcelFile(mail.attachments[0].content)) as unknown as InSheet[];

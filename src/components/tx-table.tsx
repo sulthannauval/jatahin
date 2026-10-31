@@ -2,16 +2,18 @@
 
 import { shortDate } from "@/lib/dates";
 import { rp } from "@/lib/money";
-import type { TxRow } from "@/lib/queries";
+import type { ActivityRow } from "@/lib/queries";
+import { moveLabel } from "./tx-list";
 import { Table, Td, Th, TotalRow } from "./table";
 import { Dot } from "./ui";
 import { useTx } from "./tx-context";
 
 /** Daily Log style table. Click a row to edit it. */
-export function TxTable({ rows }: { rows: TxRow[] }) {
+export function TxTable({ rows }: { rows: ActivityRow[] }) {
   const { openTx } = useTx();
-  const income = rows.reduce((s, r) => s + (r.kind === "income" ? r.amount : 0), 0);
-  const expense = rows.reduce((s, r) => s + (r.kind === "expense" ? r.amount : 0), 0);
+  const income = rows.reduce((s, r) => s + (r.type === "tx" && r.kind === "income" ? r.amount : 0), 0);
+  const expense = rows.reduce((s, r) => s + (r.type === "tx" && r.kind === "expense" ? r.amount : 0), 0);
+  const count = rows.filter((r) => r.type === "tx").length;
   // Oldest first, like the sheet.
   const sorted = [...rows].reverse();
   return (
@@ -28,7 +30,20 @@ export function TxTable({ rows }: { rows: TxRow[] }) {
         <tr><Th>Tanggal</Th><Th>Kategori</Th><Th>Deskripsi</Th><Th num>Pemasukan</Th><Th num>Pengeluaran</Th></tr>
       </thead>
       <tbody>
-        {sorted.map((r) => (
+        {sorted.map((r) => r.type === "transfer" ? (
+          <tr
+            key={`m-${r.id}`}
+            tabIndex={0}
+            onClick={() => openTx({ id: r.id, kind: "transfer", fromPotId: r.fromPotId, toPotId: r.toPotId, date: r.date, amount: r.amount, description: r.note })}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.click()}
+            className="cursor-pointer text-muted transition hover:bg-raised/60 focus-visible:bg-raised"
+          >
+            <Td className="num">{shortDate(r.date).replace(/ \d{4}$/, "")}</Td>
+            <Td className="truncate">Pindah kantong</Td>
+            <Td className="truncate" title={[moveLabel(r), r.note].filter(Boolean).join(" · ")}>{[moveLabel(r), r.note].filter(Boolean).join(" · ")}</Td>
+            <Td num colSpan={2}>{rp(r.amount)}</Td>
+          </tr>
+        ) : (
           <tr
             key={r.id}
             tabIndex={0}
@@ -44,7 +59,7 @@ export function TxTable({ rows }: { rows: TxRow[] }) {
           </tr>
         ))}
         <TotalRow>
-          <Td colSpan={3}>Total ({rows.length} transaksi)</Td>
+          <Td colSpan={3}>Total ({count} transaksi)</Td>
           <Td num className="text-pos">{rp(income)}</Td>
           <Td num>{rp(expense)}</Td>
         </TotalRow>

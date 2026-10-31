@@ -5,9 +5,14 @@ import { CheckCircle2, XCircle } from "lucide-react";
 
 export type TxDraft = {
   id?: number;
-  kind: "income" | "expense";
+  /** "transfer": money moved between kantong. */
+  kind: "income" | "expense" | "transfer";
   categoryId?: number;
+  /** The kantong the money left or arrived in. Null: Kantong Utama. */
   potId?: number | null;
+  /** For a transfer. Null: Kantong Utama. */
+  fromPotId?: number | null;
+  toPotId?: number | null;
   date?: string;
   amount?: number;
   description?: string;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
-import { getCategories, getTransactions } from "@/lib/queries";
+import { getActivity, getCategories } from "@/lib/queries";
 import { currentMonth, isMonthKey, monthLabel } from "@/lib/dates";
 import { rp } from "@/lib/money";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -23,13 +23,14 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
   const c = typeof sp.c === "string" && /^\d+$/.test(sp.c) ? Number(sp.c) : undefined;
   const view = sp.v === "tabel" ? "tabel" : "daftar";
   const db = await getDb();
-  const [rows, cats] = await Promise.all([getTransactions(db, { month, q, categoryId: c }), getCategories(db, true)]);
-  const income = rows.reduce((s, r) => s + (r.kind === "income" ? r.amount : 0), 0);
-  const expense = rows.reduce((s, r) => s + (r.kind === "expense" ? r.amount : 0), 0);
+  const [rows, cats] = await Promise.all([getActivity(db, { month, q, categoryId: c }), getCategories(db, true)]);
+  const income = rows.reduce((s, r) => s + (r.type === "tx" && r.kind === "income" ? r.amount : 0), 0);
+  const expense = rows.reduce((s, r) => s + (r.type === "tx" && r.kind === "expense" ? r.amount : 0), 0);
+  const count = rows.filter((r) => r.type === "tx").length;
 
   return (
     <div className="mx-auto max-w-[760px]">
-      <PageHeader title="Transaksi" sub={`${rows.length} transaksi di ${monthLabel(month)}${q ? ` untuk pencarian “${q}”` : ""}`}>
+      <PageHeader title="Transaksi" sub={`${count} transaksi di ${monthLabel(month)}${q ? ` untuk pencarian “${q}”` : ""}`}>
         <div className="flex items-center gap-2">
           <ViewToggle view={view} sp={{ m: isMonthKey(sp.m) ? sp.m : undefined, q: q || undefined, c: c ? String(c) : undefined }} />
           <MonthSwitcher month={month} path="/transaksi" params={{ q: q || undefined, c: c ? String(c) : undefined, v: view === "tabel" ? "tabel" : undefined }} />
