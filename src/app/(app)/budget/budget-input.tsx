@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { Check, Copy, Loader2 } from "lucide-react";
-import { copyBudgets, setBudget } from "@/app/actions";
+import { copyBudgets, setBudget, setSavingPlan } from "@/app/actions";
 import { groupDigits } from "@/lib/money";
 import { useTx } from "@/components/tx-context";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
-export function BudgetInput({ month, categoryId, value, label }: { month: string; categoryId: number; value: number; label: string }) {
+/** A budget field that saves on blur. `categoryId` null: the month's saving plan. */
+export function BudgetInput({ month, categoryId, value, label }: { month: string; categoryId: number | null; value: number; label: string }) {
   const initial = value ? groupDigits(String(value)) : "";
   const [v, setV] = useState(initial);
   const [saved, setSaved] = useState(initial);
@@ -19,7 +20,7 @@ export function BudgetInput({ month, categoryId, value, label }: { month: string
   const commit = () => {
     if (v === saved) return;
     start(async () => {
-      const r = await setBudget(month, categoryId, v);
+      const r = categoryId === null ? await setSavingPlan(month, v) : await setBudget(month, categoryId, v);
       if (r.ok) { setSaved(v); setDone(true); setTimeout(() => setDone(false), 1200); }
       else { toast(r.error, "error"); setV(saved); }
     });
@@ -32,7 +33,7 @@ export function BudgetInput({ month, categoryId, value, label }: { month: string
         value={v}
         inputMode="numeric"
         placeholder="0"
-        aria-label={`Budget ${label}`}
+        aria-label={categoryId === null ? label : `Budget ${label}`}
         onChange={(e) => setV(groupDigits(e.target.value))}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setV(saved); } }}

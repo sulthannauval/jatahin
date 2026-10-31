@@ -9,7 +9,7 @@ export const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsh
 export type BackupFile = {
   filename: string;
   content: Buffer;
-  counts: { transactions: number; categories: number; pots: number; adjustments: number; budgets: number };
+  counts: { transactions: number; transfers: number; categories: number; pots: number; adjustments: number; budgets: number };
 };
 
 /** Every finance table as one .xlsx file that the import form can restore. */
@@ -20,7 +20,7 @@ export async function backupFile(db: DB, now = new Date()): Promise<BackupFile> 
     filename: `jatahin-backup-${today(now)}.xlsx`,
     content,
     counts: {
-      transactions: data.transactions.length, categories: data.categories.length, pots: data.pots.length,
+      transactions: data.transactions.length, transfers: data.transfers.length, categories: data.categories.length, pots: data.pots.length,
       adjustments: data.adjustments.length, budgets: data.budgets.length,
     },
   };

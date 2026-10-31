@@ -36,6 +36,20 @@
       "when": 1793197886367,
       "tag": "0004_auth_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793420656507,
+      "tag": "0005_kantong",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793420657670,
+      "tag": "0006_drop_category_role",
+      "breakpoints": true
     }
   ]
 }

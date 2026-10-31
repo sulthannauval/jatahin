@@ -1,38 +1,34 @@
-// Pure money math. Mirrors the formulas from the old MoneyFlows spreadsheet.
+// Pure money math. Mirrors the formulas from the old MoneyFlows spreadsheet, with money kept in kantong.
 import { addMonths, monthOf, monthsBetween } from "./dates";
 
 export type Kind = "income" | "expense";
-export type Role = "saving_deposit" | "saving_withdraw" | null;
+export type PotKind = "saving" | "spending";
 
-export type CatInfo = { id: number; name: string; kind: Kind; group: string; role: Role };
+export type CatInfo = { id: number; name: string; kind: Kind; group: string };
 /** Total per category per month ("YYYY-MM"). */
 export type MonthCatSum = { month: string; categoryId: number; total: number };
 
-export const EXPENSE_GROUPS = ["Wajib", "Kebutuhan", "Keinginan", "Saving", "Lainnya"] as const;
-export const INCOME_GROUPS = ["Rutin", "Tidak Rutin", "Lainnya", "Bukan Income"] as const;
+export const EXPENSE_GROUPS = ["Wajib", "Kebutuhan", "Keinginan", "Lainnya"] as const;
+export const INCOME_GROUPS = ["Rutin", "Tidak Rutin", "Lainnya"] as const;
 
 export type MonthSummary = {
   income: number;
   expense: number;
-  /** Income that is just money taken out of savings. */
-  withdraw: number;
-  /** Expense that is just money put into savings. */
-  deposit: number;
   net: number;
-  /** Income without money taken out of savings (salary, side income...). */
-  realIncome: number;
-  /** Spending paid for with money taken out of savings this month (never more than the spending itself). */
+  /** Money taken out of saving kantong for spending this month (moved out, or spent straight from them). */
+  savingsOut: number;
+  /** Spending paid for with that money (never more than the spending itself). */
   fromSavings: number;
-  /** Share of real income that was kept: (realIncome − (expense − fromSavings − deposit)) / realIncome. null without real income. */
+  /** Share of income that was kept: (income − (expense − fromSavings)) / income. null without income. */
   savingRate: number | null;
   byCategory: Map<number, number>;
   byGroup: Map<string, number>;
 };
 
-export function summarizeMonth(sums: MonthCatSum[], cats: CatInfo[], month: string): MonthSummary {
+export function summarizeMonth(sums: MonthCatSum[], cats: CatInfo[], month: string, savingsOut = 0): MonthSummary {
   const catById = new Map(cats.map((c) => [c.id, c]));
   const s: MonthSummary = {
-    income: 0, expense: 0, withdraw: 0, deposit: 0, net: 0, realIncome: 0, fromSavings: 0, savingRate: null,
+    income: 0, expense: 0, net: 0, savingsOut, fromSavings: 0, savingRate: null,
     byCategory: new Map(), byGroup: new Map(),
   };
   for (const row of sums) {
@@ -40,21 +36,16 @@ export function summarizeMonth(sums: MonthCatSum[], cats: CatInfo[], month: stri
     const c = catById.get(row.categoryId);
     if (!c) continue;
     s.byCategory.set(c.id, (s.byCategory.get(c.id) ?? 0) + row.total);
-    if (c.kind === "income") {
-      s.income += row.total;
-      if (c.role === "saving_withdraw") s.withdraw += row.total;
-    } else {
+    if (c.kind === "income") s.income += row.total;
+    else {
       s.expense += row.total;
-      if (c.role === "saving_deposit") s.deposit += row.total;
       s.byGroup.set(c.group, (s.byGroup.get(c.group) ?? 0) + row.total);
     }
   }
   s.net = s.income - s.expense;
-  s.realIncome = s.income - s.withdraw;
   // Money taken out of savings is assumed to pay for that month's (usually unplanned) spending.
-  s.fromSavings = Math.min(s.withdraw, s.expense);
-  const spentFromIncome = s.expense - s.fromSavings - s.deposit;
-  s.savingRate = s.realIncome > 0 ? (s.realIncome - spentFromIncome) / s.realIncome : null;
+  s.fromSavings = Math.min(savingsOut, s.expense);
+  s.savingRate = s.income > 0 ? (s.income - (s.expense - s.fromSavings)) / s.income : null;
   return s;
 }
 
@@ -79,31 +70,64 @@ export function monthlyTotals(sums: MonthCatSum[], cats: CatInfo[], from: string
   return out;
 }
 
+// ── Kantong ───────────────────────────────────────────────────
+
+/** Income or spending on a day, in the kantong it arrived in or left (null: Kantong Utama). */
+export type PotTx = { date: string; potId: number | null; kind: Kind; amount: number };
+/** Money moved between kantong. Null: Kantong Utama. */
+export type TransferInfo = { date: string; fromPotId: number | null; toPotId: number | null; amount: number };
+/** Money entering (+) or leaving (−) one kantong on a day. potId null: Kantong Utama. */
+export type Move = { date: string; potId: number | null; amount: number };
+
+export function toMoves(txs: PotTx[], transfers: TransferInfo[]): Move[] {
+  const out: Move[] = txs.map((t) => ({ date: t.date, potId: t.potId, amount: t.kind === "income" ? t.amount : -t.amount }));
+  for (const t of transfers) {
+    out.push({ date: t.date, potId: t.fromPotId, amount: -t.amount }, { date: t.date, potId: t.toPotId, amount: t.amount });
+  }
+  return out;
+}
+
+/** How much one kantong grew or shrank in each month ("YYYY-MM"). Null: Kantong Utama. */
+export function monthlyNets(moves: Move[], potId: number | null = null): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const m of moves) {
+    if (m.potId !== potId) continue;
+    const k = monthOf(m.date);
+    out.set(k, (out.get(k) ?? 0) + m.amount);
+  }
+  return out;
+}
+
+/**
+ * Money taken out of saving kantong per month for spending: moved to Kantong Utama or to a spending kantong,
+ * or spent straight from the saving kantong. Moves between saving kantong don't count.
+ */
+export function savingsOutByMonth(txs: PotTx[], transfers: TransferInfo[], savingIds: ReadonlySet<number>): Map<string, number> {
+  const out = new Map<string, number>();
+  const add = (date: string, amount: number) => out.set(monthOf(date), (out.get(monthOf(date)) ?? 0) + amount);
+  const saving = (id: number | null) => id !== null && savingIds.has(id);
+  for (const t of transfers) if (saving(t.fromPotId) && !saving(t.toPotId)) add(t.date, t.amount);
+  for (const t of txs) if (t.kind === "expense" && saving(t.potId)) add(t.date, t.amount);
+  return out;
+}
+
 export type Carry = { opening: number; closing: number } | null;
 
 /**
- * Leftover money rolls into the next month, starting at `startMonth` with `startBalance`.
- * Returns null for months before the start (or when carry-over isn't set up).
+ * Kantong Utama's balance carries into the next month, starting at `startMonth` with `startBalance`.
+ * `nets` is Kantong Utama's change per month. Returns null for months before the start (or when not set up).
  */
-export function carryOver(
-  sums: MonthCatSum[],
-  cats: CatInfo[],
-  startMonth: string | null,
-  startBalance: number,
-  month: string,
-): Carry {
+export function carryOver(nets: Map<string, number>, startMonth: string | null, startBalance: number, month: string): Carry {
   if (!startMonth || month < startMonth) return null;
-  const totals = monthlyTotals(sums, cats, startMonth, month);
   let opening = startBalance;
-  for (const t of totals.slice(0, -1)) opening += t.net;
-  const current = totals[totals.length - 1];
-  return { opening, closing: opening + current.net };
+  for (let m = startMonth; m < month; m = addMonths(m, 1)) opening += nets.get(m) ?? 0;
+  return { opening, closing: opening + (nets.get(month) ?? 0) };
 }
 
-export type SavingTx = { date: string; potId: number | null; amount: number; role: Role };
 export type PotInfo = {
   id: number;
   name: string;
+  kind: PotKind;
   openingBalance: number;
   openingDate: string | null;
   target: number | null;
@@ -111,30 +135,15 @@ export type PotInfo = {
   priority: number | null;
 };
 
-/**
- * Balance = opening balance + deposits − withdrawals from the opening date on.
- * The opening balance is the balance at the START of openingDate, so that day's transactions count.
- */
-/** A correction straight on a pot (a mismatch with the bank). Signed. Bank interest is not tracked. */
+/** A correction straight on a kantong (a mismatch with the bank). Signed. Bank interest is not tracked. */
 export type PotAdjustment = { potId: number; date: string; amount: number };
 
-export function potBalances(pots: PotInfo[], txs: SavingTx[], adjustments: PotAdjustment[] = []): Map<number, number> {
-  const out = new Map<number, number>(pots.map((p) => [p.id, p.openingBalance]));
-  const potById = new Map(pots.map((p) => [p.id, p]));
-  for (const t of txs) {
-    if (t.potId === null || !t.role) continue;
-    const p = potById.get(t.potId);
-    if (!p) continue;
-    if (p.openingDate && t.date < p.openingDate) continue;
-    const sign = t.role === "saving_deposit" ? 1 : -1;
-    out.set(p.id, (out.get(p.id) ?? 0) + sign * t.amount);
-  }
-  for (const a of adjustments) {
-    const p = potById.get(a.potId);
-    if (!p || (p.openingDate && a.date < p.openingDate)) continue;
-    out.set(p.id, (out.get(p.id) ?? 0) + a.amount);
-  }
-  return out;
+/**
+ * Balance = opening balance + money in − money out from the opening date on.
+ * The opening balance is the balance at the START of openingDate, so that day's moves count.
+ */
+export function potBalances(pots: PotInfo[], moves: Move[], adjustments: PotAdjustment[] = []): Map<number, number> {
+  return new Map(potDetails(pots, moves, adjustments).map((d) => [d.potId, d.balance]));
 }
 
 export type GoalStatus = "done" | "active" | "queued";
@@ -144,25 +153,25 @@ export type Goal = PotInfo & {
   remaining: number;
   status: GoalStatus;
   overdue: boolean;
-  /** Average net deposit per month over the last 3 full months. */
+  /** Average net money in per month over the last 3 full months. */
   pace: number;
   /** Estimated month the target is reached at the current pace. */
   eta: string | null;
 };
 
 /** Goals are worked on in order of priority: the first unfinished one is active, the rest wait. */
-export function buildGoals(pots: PotInfo[], balances: Map<number, number>, txs: SavingTx[], todayDate: string): Goal[] {
+export function buildGoals(pots: PotInfo[], balances: Map<number, number>, moves: Move[], todayDate: string): Goal[] {
   const thisMonth = monthOf(todayDate);
   const paceFrom = addMonths(thisMonth, -3);
   const goals = pots
-    .filter((p) => p.target !== null && p.target > 0)
+    .filter((p) => p.kind === "saving" && p.target !== null && p.target > 0)
     .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999) || a.id - b.id);
+  const goalIds = new Set(goals.map((g) => g.id));
   let activeFound = false;
   // Pace is measured on everything saved recently, since savings go to one goal at a time.
-  const recentNet = txs
-    .filter((t) => t.potId !== null && t.role && monthOf(t.date) >= paceFrom && monthOf(t.date) < thisMonth)
-    .filter((t) => goals.some((g) => g.id === t.potId))
-    .reduce((s, t) => s + (t.role === "saving_deposit" ? t.amount : -t.amount), 0);
+  const recentNet = moves
+    .filter((m) => m.potId !== null && goalIds.has(m.potId) && monthOf(m.date) >= paceFrom && monthOf(m.date) < thisMonth)
+    .reduce((s, m) => s + m.amount, 0);
   const pace = Math.max(0, Math.round(recentNet / 3));
 
   let queuedRemaining = 0;
@@ -219,54 +228,59 @@ export type PotDetail = {
   potId: number;
   openingBalance: number;
   openingDate: string | null;
-  /** Deposits / withdrawals from the opening date on (these count toward the balance). */
-  deposits: number;
-  withdrawals: number;
+  /** Money in and out from the opening date on (these count toward the balance). */
+  inflow: number;
+  outflow: number;
   /** Sum of corrections (bank mismatch). */
   adjusted: number;
   balance: number;
-  /** All withdrawals ever, for reference only. */
-  withdrawnAllTime: number;
+  /** All money out ever, for reference only. */
+  outAllTime: number;
 };
 
-/** Same math as potBalances, broken down like the spreadsheet's "Saldo Tabungan" table. */
-export function potDetails(pots: PotInfo[], txs: SavingTx[], adjustments: PotAdjustment[] = []): PotDetail[] {
+/** A kantong's balance broken down like the spreadsheet's "Saldo Tabungan" table. */
+export function potDetails(pots: PotInfo[], moves: Move[], adjustments: PotAdjustment[] = []): PotDetail[] {
   return pots.map((p) => {
-    let deposits = 0, withdrawals = 0, withdrawnAllTime = 0;
-    const adjusted = adjustments
-      .filter((a) => a.potId === p.id && !(p.openingDate && a.date < p.openingDate))
-      .reduce((sum, a) => sum + a.amount, 0);
-    for (const t of txs) {
-      if (t.potId !== p.id || !t.role) continue;
-      if (t.role === "saving_withdraw") withdrawnAllTime += t.amount;
-      if (p.openingDate && t.date < p.openingDate) continue;
-      if (t.role === "saving_deposit") deposits += t.amount;
-      else withdrawals += t.amount;
+    let inflow = 0, outflow = 0, outAllTime = 0;
+    const counts = (date: string) => !(p.openingDate && date < p.openingDate);
+    const adjusted = adjustments.filter((a) => a.potId === p.id && counts(a.date)).reduce((sum, a) => sum + a.amount, 0);
+    for (const m of moves) {
+      if (m.potId !== p.id) continue;
+      if (m.amount < 0) outAllTime -= m.amount;
+      if (!counts(m.date)) continue;
+      if (m.amount > 0) inflow += m.amount;
+      else outflow -= m.amount;
     }
     return {
       potId: p.id, openingBalance: p.openingBalance, openingDate: p.openingDate,
-      deposits, withdrawals, adjusted, balance: p.openingBalance + deposits - withdrawals + adjusted, withdrawnAllTime,
+      inflow, outflow, adjusted, balance: p.openingBalance + inflow - outflow + adjusted, outAllTime,
     };
   });
 }
 
-export type TrendRow = MonthTotals & { opening: number | null; closing: number | null };
+export type TrendRow = MonthTotals & {
+  /** Kantong Utama's change that isn't income or spending: moves from and to other kantong, money spent from them. */
+  moved: number;
+  opening: number | null;
+  closing: number | null;
+};
 
-/** Month-by-month table with carried-over balance (like the spreadsheet's "TREND PER BULAN"). */
+/** Month-by-month table with Kantong Utama's carried-over balance (like the spreadsheet's "TREND PER BULAN"). */
 export function trendTable(
-  sums: MonthCatSum[], cats: CatInfo[], startMonth: string | null, startBalance: number, from: string, to: string,
+  sums: MonthCatSum[], cats: CatInfo[], nets: Map<string, number>, startMonth: string | null, startBalance: number, from: string, to: string,
 ): TrendRow[] {
-  const rows = monthlyTotals(sums, cats, from < (startMonth ?? from) ? from : startMonth ?? from, to);
+  const rows = monthlyTotals(sums, cats, startMonth && startMonth < from ? startMonth : from, to);
   let bal: number | null = null;
   const out: TrendRow[] = [];
   for (const r of rows) {
+    const change = nets.get(r.month) ?? 0;
     let opening: number | null = null, closing: number | null = null;
     if (startMonth && r.month >= startMonth) {
       opening = bal ?? startBalance;
-      closing = opening + r.net;
+      closing = opening + change;
       bal = closing;
     }
-    if (r.month >= from) out.push({ ...r, opening, closing });
+    if (r.month >= from) out.push({ ...r, moved: change - r.net, opening, closing });
   }
   return out;
 }
@@ -289,21 +303,21 @@ export function budgetSplit(lines: BudgetLine[]): BudgetSplit {
   };
 }
 
-export type FlowTotals = { deposits: number; withdrawals: number; net: number };
-export type SavingFlows = FlowTotals & { byPot: Map<number, FlowTotals> };
+export type FlowTotals = { inflow: number; outflow: number; net: number };
+export type PotFlows = FlowTotals & { byPot: Map<number, FlowTotals> };
 
-/** Money put into and taken out of savings pots in one month ("YYYY-MM"), in total and per pot. */
-export function savingFlows(txs: SavingTx[], month: string): SavingFlows {
-  const out: SavingFlows = { deposits: 0, withdrawals: 0, net: 0, byPot: new Map() };
-  for (const t of txs) {
-    if (t.potId === null || !t.role || monthOf(t.date) !== month) continue;
-    const pot = out.byPot.get(t.potId) ?? { deposits: 0, withdrawals: 0, net: 0 };
-    if (t.role === "saving_deposit") { pot.deposits += t.amount; out.deposits += t.amount; }
-    else { pot.withdrawals += t.amount; out.withdrawals += t.amount; }
-    pot.net = pot.deposits - pot.withdrawals;
-    out.byPot.set(t.potId, pot);
+/** Money into and out of the other kantong (not Kantong Utama) in one month ("YYYY-MM"), in total and per kantong. */
+export function potFlows(moves: Move[], month: string): PotFlows {
+  const out: PotFlows = { inflow: 0, outflow: 0, net: 0, byPot: new Map() };
+  for (const m of moves) {
+    if (m.potId === null || monthOf(m.date) !== month) continue;
+    const pot = out.byPot.get(m.potId) ?? { inflow: 0, outflow: 0, net: 0 };
+    if (m.amount > 0) { pot.inflow += m.amount; out.inflow += m.amount; }
+    else { pot.outflow -= m.amount; out.outflow -= m.amount; }
+    pot.net = pot.inflow - pot.outflow;
+    out.byPot.set(m.potId, pot);
   }
-  out.net = out.deposits - out.withdrawals;
+  out.net = out.inflow - out.outflow;
   return out;
 }
 
@@ -317,10 +331,10 @@ export function neededPerMonth(remaining: number, targetDate: string | null, tod
 type NamedCat = CatInfo & { name: string };
 export type CategoryChange = { id: number; name: string; group: string; prev: number; cur: number; diff: number };
 
-/** Expense categories that moved the most against the previous month, largest change first. Savings deposits excluded. */
+/** Expense categories that moved the most against the previous month, largest change first. */
 export function categoryChanges(cur: MonthSummary, prev: MonthSummary, cats: NamedCat[], limit = 5): CategoryChange[] {
   return cats
-    .filter((c) => c.kind === "expense" && c.role !== "saving_deposit")
+    .filter((c) => c.kind === "expense")
     .map((c) => {
       const a = prev.byCategory.get(c.id) ?? 0, b = cur.byCategory.get(c.id) ?? 0;
       return { id: c.id, name: c.name, group: c.group, prev: a, cur: b, diff: b - a };

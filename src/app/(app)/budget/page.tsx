@@ -27,8 +27,8 @@ export default async function BudgetPage({ searchParams }: PageProps<"/budget">)
   const cats = new Map(d.cats.map((c) => [c.id, c]));
   const isCurrent = month === currentMonth();
   const progress = monthProgress(month, today(), daysInMonth(month));
-  // Warn only when the plan asks for more than last month actually brought in.
-  const overIncome = d.prevRealIncome > 0 ? d.budgetTotal - d.prevRealIncome : 0;
+  // Warn only when spending and saving plans together ask for more than last month actually brought in.
+  const overIncome = d.prev.income > 0 ? d.budgetTotal + (d.savingPlan ?? 0) - d.prev.income : 0;
   const split = budgetSplit(d.lines);
   const left = d.budgetTotal - split.planned;
   const unplannedIds = new Set(split.unplannedLines.map((l) => l.categoryId));
@@ -140,13 +140,43 @@ export default async function BudgetPage({ searchParams }: PageProps<"/budget">)
         </Card>
       </section>
 
+      {/* Money meant for saving kantong: moved, not spent, so it sits apart from the spending budget */}
+      {(d.savingPlan !== null || d.saved > 0 || editing) && (
+        <section className="mt-8" aria-labelledby="saving-plan">
+          <SectionHeader id="saving-plan" title="Rencana menabung" note="dipindah ke kantong tabungan" />
+          <Card className="px-5 py-4">
+            <div className="flex min-h-7 items-center justify-between gap-3">
+              <span className="text-sm">Bulan ini</span>
+              {editing ? (
+                <div className="w-32 shrink-0 sm:w-36">
+                  <BudgetInput key={`${month}-plan-${d.savingPlan}`} month={month} categoryId={null} value={d.savingPlan ?? 0} label="Rencana menabung" />
+                </div>
+              ) : (
+                <span className="num text-sm">
+                  <span className={cn(!d.saved && "text-muted")}>{rp(d.saved)}</span>
+                  {d.savingPlan !== null && <span className="text-muted"> / {rp(d.savingPlan)}</span>}
+                </span>
+              )}
+            </div>
+            {d.savingPlan !== null && d.savingPlan > 0 && (
+              <div className="mt-1.5 flex items-center gap-3">
+                <PlanBar quiet className="flex-1" spent={Math.min(d.saved, d.savingPlan)} plan={d.savingPlan} label={`Ditabung ${rp(d.saved)} dari ${rp(d.savingPlan)}`} />
+                <span className={cn("num w-36 shrink-0 text-right text-xs", d.saved >= d.savingPlan ? "text-pos" : "text-muted")}>
+                  {d.saved >= d.savingPlan ? "tercapai" : `kurang ${rp(d.savingPlan - d.saved)}`}
+                </span>
+              </div>
+            )}
+          </Card>
+        </section>
+      )}
+
       {/* Spending outside the plan */}
       {split.unplannedLines.length > 0 && (
         <section className="mt-8" aria-labelledby="unplanned">
           <SectionHeader id="unplanned" title="Di luar budget" note={rp(split.unplanned)} more={<MoreLink href={month === currentMonth() ? "/laporan" : `/laporan?m=${month}`}>Laporan</MoreLink>} />
           <p className="mb-3 text-sm text-muted">
             Pengeluaran pada kategori tanpa budget bulan ini. Tidak termasuk dalam perhitungan sisa budget.
-            {d.summary.withdraw > 0 && <> Penarikan tabungan bulan ini: <span className="num text-ink-2">{rp(d.summary.withdraw)}</span>.</>}
+            {d.summary.savingsOut > 0 && <> Diambil dari kantong tabungan bulan ini: <span className="num text-ink-2">{rp(d.summary.savingsOut)}</span>.</>}
           </p>
           <Card className="overflow-hidden">
             <ul>{split.unplannedLines.map((l) => <UnplannedRow key={l.categoryId} line={l} name={cats.get(l.categoryId)!.name} group={cats.get(l.categoryId)!.group} month={month} editing={editing} />)}</ul>

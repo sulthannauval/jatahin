@@ -5,7 +5,8 @@ import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Dot } from "./ui";
 
-export type PickerOption = { id: number; name: string; group?: string };
+/** `hint`: a small grey note on the right, such as a kantong's balance. */
+export type PickerOption = { id: number; name: string; group?: string; hint?: string };
 export type PickerSection = { title: string; options: PickerOption[] };
 
 /**
@@ -102,6 +103,7 @@ export function Picker({
         <span className={cn("flex min-w-0 flex-1 items-center gap-2 text-[15px]", selected ? "text-ink" : invalid ? "text-neg" : "text-muted/70")}>
           {selected?.group && <Dot group={selected.group} />}
           <span className="truncate">{selected?.name ?? placeholder}</span>
+          {selected?.hint && <span className="num ml-auto shrink-0 text-[13px] text-muted">{selected.hint}</span>}
         </span>
         <ChevronDown className={cn("size-4 shrink-0 text-muted transition-transform duration-200", open && "rotate-180")} strokeWidth={1.75} />
       </button>
@@ -145,7 +147,10 @@ export function Picker({
                       className={cn("flex h-10 cursor-pointer items-center justify-between rounded-lg px-3 text-sm transition-colors", isActive ? "bg-field text-ink" : "text-ink-2")}
                     >
                       <span className="flex min-w-0 items-center gap-2.5">{o.group && <Dot group={o.group} />}<span className="truncate">{o.name}</span></span>
-                      {isSel && <Check className="size-4 shrink-0 text-ink" strokeWidth={2} />}
+                      <span className="flex shrink-0 items-center gap-2">
+                        {o.hint && <span className="num text-xs text-muted">{o.hint}</span>}
+                        {isSel && <Check className="size-4 text-ink" strokeWidth={2} />}
+                      </span>
                     </div>
                   );
                 })}

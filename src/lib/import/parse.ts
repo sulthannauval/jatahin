@@ -1,5 +1,6 @@
 // Turns the MoneyFlows spreadsheet (as read by read-excel-file) into plain data. No DB access here.
-import type { Kind, Role } from "../finance";
+import type { Kind } from "../finance";
+import type { LegacyRole as Role } from "../legacy";
 
 type Cell = string | number | boolean | Date | null | undefined;
 export type Sheet = { sheet: string; data: Cell[][] };

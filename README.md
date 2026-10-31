@@ -11,7 +11,7 @@ This repository is mainly an archive and a personal reference. Feel free to borr
 - **Daily transactions**: income and expenses by category, with search, filters and a table view that mirrors the old Daily Log sheet.
 - **Quick entry**: the installed app's icon offers "Catat pengeluaran" and "Catat pemasukan" when held down. The form suggests entries recorded at least twice in the last 90 days (with the latest amount), offers past notes while typing, and picks the category from the note.
 - **Monthly budget**: remaining or over-budget amounts per category. Spending in categories without a budget is shown separately and kept out of the remaining-budget figure.
-- **Savings and goals**: balance per savings pot, goals funded one after another, the monthly amount needed to reach each target date, and matching pot balances against the bank.
+- **Kantong**: money kept apart from Kantong Utama, like bank pockets. Saving kantong can have targets, funded one after another, with the monthly amount needed to reach each target date; spending kantong are paid from directly. Moving money between kantong is never counted as income or spending, and every kantong can be matched against the bank.
 - **Report**: monthly summary, the expense categories that changed most against last month, spending breakdown by type, and a six-month trend.
 - **Carry-over balance**: each month's leftover becomes the next month's opening balance, like in the old spreadsheet.
 - **Backup**: download all data as one `.xlsx` file and restore it later from the same page.
@@ -42,7 +42,7 @@ Importing data from the old spreadsheet (either works):
 
 ## Backup and restore
 
-**Pengaturan → Ekspor & impor → Unduh .xlsx** downloads `jatahin-backup-YYYY-MM-DD.xlsx`. It holds every transaction, category, savings pot, pot adjustment, budget and setting, one sheet per table, with the original IDs. The account (email and password hash) and sign-in records are left out.
+**Pengaturan → Ekspor & impor → Unduh .xlsx** downloads `jatahin-backup-YYYY-MM-DD.xlsx`. It holds every transaction, move between kantong, category, kantong, kantong adjustment, budget, saving plan and setting, one sheet per table, with the original IDs. Backups made before kantong (format version 1) can still be restored: their savings deposits and withdrawals become moves between kantong. The account (email and password hash) and sign-in records are left out.
 
 To restore, upload the file in the same section. The app tells a backup apart from the old MoneyFlows spreadsheet by its `Info` sheet. A restore replaces all finance data in one database transaction, so a file with a problem (for example an `ID kategori` that doesn't exist) is rejected with the sheet, row and column, and the current data stays as it was. Replacing existing data asks for the current password first.
 

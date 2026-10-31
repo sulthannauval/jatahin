@@ -16,8 +16,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const categoryKind = pgEnum("category_kind", ["income", "expense"]);
-/** Special behaviour: deposits into / withdrawals from a savings pot. */
-export const categoryRole = pgEnum("category_role", ["saving_deposit", "saving_withdraw"]);
+/** A kantong for saving (may have a target) or for spending from directly (e.g. a monthly food kantong). */
+export const potKind = pgEnum("pot_kind", ["saving", "spending"]);
 
 const money = (name: string) => bigint(name, { mode: "number" });
 
@@ -29,17 +29,20 @@ export const categories = pgTable(
     kind: categoryKind("kind").notNull(),
     /** Expense: Wajib / Kebutuhan / Keinginan / Saving / Lainnya. Income: Rutin / Tidak Rutin / ... */
     group: text("group").notNull().default("Lainnya"),
-    role: categoryRole("role"),
     sortOrder: integer("sort_order").notNull().default(0),
     archived: boolean("archived").notNull().default(false),
   },
   (t) => [uniqueIndex("categories_name_kind_idx").on(t.name, t.kind)],
 );
 
-/** Savings pots. A pot with a target is a goal. */
+/**
+ * Kantong: money kept apart from the main kantong (Kantong Utama, which has no row and is `null` everywhere).
+ * A saving kantong with a target is a goal.
+ */
 export const pots = pgTable("pots", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
+  kind: potKind("kind").notNull().default("saving"),
   note: text("note").notNull().default(""),
   target: money("target"),
   targetDate: date("target_date"),
@@ -60,6 +63,7 @@ export const transactions = pgTable(
     categoryId: integer("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "restrict" }),
+    /** The kantong the money left (expense) or arrived in (income). Null: Kantong Utama. */
     potId: integer("pot_id").references(() => pots.id, { onDelete: "restrict" }),
     description: text("description").notNull().default(""),
     amount: money("amount").notNull(),
@@ -69,6 +73,27 @@ export const transactions = pgTable(
     index("transactions_date_idx").on(t.date),
     index("transactions_category_idx").on(t.categoryId),
     check("transactions_amount_positive", sql`${t.amount} > 0`),
+  ],
+);
+
+/**
+ * Money moved between two kantong. Null on either side is Kantong Utama. Never counted as income or spending.
+ */
+export const transfers = pgTable(
+  "transfers",
+  {
+    id: serial("id").primaryKey(),
+    date: date("date").notNull(),
+    fromPotId: integer("from_pot_id").references(() => pots.id, { onDelete: "restrict" }),
+    toPotId: integer("to_pot_id").references(() => pots.id, { onDelete: "restrict" }),
+    amount: money("amount").notNull(),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("transfers_date_idx").on(t.date),
+    check("transfers_amount_positive", sql`${t.amount} > 0`),
+    check("transfers_two_kantong", sql`${t.fromPotId} is distinct from ${t.toPotId}`),
   ],
 );
 
@@ -106,6 +131,16 @@ export const budgets = pgTable(
     primaryKey({ columns: [t.month, t.categoryId] }),
     check("budgets_amount_nonneg", sql`${t.amount} >= 0`),
   ],
+);
+
+/** How much is meant to go into saving kantong in a month. month = first day of the month. */
+export const savingPlans = pgTable(
+  "saving_plans",
+  {
+    month: date("month").primaryKey(),
+    amount: money("amount").notNull(),
+  },
+  (t) => [check("saving_plans_amount_nonneg", sql`${t.amount} >= 0`)],
 );
 
 /** Single-row settings table (id = 1). */
@@ -167,3 +202,4 @@ export const authTokens = pgTable(
 export type Category = typeof categories.$inferSelect;
 export type Pot = typeof pots.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
+export type Transfer = typeof transfers.$inferSelect;

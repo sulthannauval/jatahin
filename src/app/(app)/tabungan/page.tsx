@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
-import { getCategories, getRecentTransactions, getSavings } from "@/lib/queries";
+import { getKantong, getRecentActivity } from "@/lib/queries";
 import { addMonths, monthLabel, monthName, shortDate, today } from "@/lib/dates";
 import { neededPerMonth } from "@/lib/finance";
 import { KpiStrip, change } from "@/components/kpi";
@@ -14,15 +14,13 @@ import { AddTxButton, TxList } from "@/components/tx-list";
 import { AdjustmentList, PotActions } from "./reconcile";
 import { Table, Td, Th, TotalRow } from "@/components/table";
 
-export const metadata: Metadata = { title: "Tabungan" };
+export const metadata: Metadata = { title: "Kantong" };
 
 /** One question: "how far is the goal I'm saving for now?" Then the queue, the pots, and the sheet's table on request. */
 export default async function SavingsPage() {
   await requireSession();
   const db = await getDb();
-  const [s, cats, recent] = await Promise.all([getSavings(db), getCategories(db), getRecentTransactions(db, 4, true)]);
-  const deposit = cats.find((c) => c.role === "saving_deposit");
-  const withdraw = cats.find((c) => c.role === "saving_withdraw");
+  const [s, recent] = await Promise.all([getKantong(db), getRecentActivity(db, 4, true)]);
   const notes = new Map(s.pots.map((p) => [p.id, p.note]));
   const sum = (f: (x: (typeof s.details)[number]) => number) => s.details.reduce((a, x) => a + f(x), 0);
   const active = s.goals.find((g) => g.status === "active");
@@ -36,21 +34,21 @@ export default async function SavingsPage() {
   return (
     <div className="mx-auto max-w-[760px] lg:max-w-[1120px]">
       <div className="mb-6">
-        <h1 className="text-2xl font-medium tracking-[-0.01em]">Tabungan</h1>
+        <h1 className="text-2xl font-medium tracking-[-0.01em]">Kantong</h1>
         <p className="mt-0.5 text-sm text-muted">Aktivitas {monthLabel(f.month)} dibandingkan dengan {prevName}</p>
       </div>
 
       {/* Where the money in savings went this month */}
       <KpiStrip
         items={[
-          { label: "Total tabungan", value: rp(s.total), sub: `Saldo saat ini di ${s.pots.length} pos` },
-          { label: "Setoran bulan ini", value: rp(f.cur.deposits), delta: change(f.prev.deposits, f.cur.deposits, true), sub: `${prevName} ${rp(f.prev.deposits)}` },
-          { label: "Penarikan bulan ini", value: rp(f.cur.withdrawals), delta: change(f.prev.withdrawals, f.cur.withdrawals, false), sub: `${prevName} ${rp(f.prev.withdrawals)}` },
+          { label: "Total di kantong lain", value: rp(s.total - s.utama), sub: `Saldo saat ini di ${s.pots.length} kantong` },
+          { label: "Masuk bulan ini", value: rp(f.cur.inflow), delta: change(f.prev.inflow, f.cur.inflow, true), sub: `${prevName} ${rp(f.prev.inflow)}` },
+          { label: "Keluar bulan ini", value: rp(f.cur.outflow), delta: change(f.prev.outflow, f.cur.outflow, false), sub: `${prevName} ${rp(f.prev.outflow)}` },
           {
             label: "Perubahan bersih",
             value: `${f.cur.net > 0 ? "+" : ""}${rp(f.cur.net)}`,
             tone: f.cur.net < 0 ? "neg" : f.cur.net > 0 ? "pos" : undefined,
-            sub: f.cur.net < 0 ? "Penarikan melebihi setoran" : f.cur.net > 0 ? "Tabungan bertambah" : "Tidak ada perubahan",
+            sub: f.cur.net < 0 ? "Lebih banyak keluar daripada masuk" : f.cur.net > 0 ? "Kantong bertambah" : "Tidak ada perubahan",
           },
         ]}
       />
@@ -67,7 +65,7 @@ export default async function SavingsPage() {
                     <p className="mt-0.5 text-lg font-medium">{active.name}</p>
                     {notes.get(active.id) && <p className="text-[13px] leading-5 text-ink-2">{notes.get(active.id)}</p>}
                   </div>
-                  {deposit && <AddTxButton className="shrink-0" label="Setor" draft={{ kind: "expense", categoryId: deposit.id, potId: active.id }} variant="primary" />}
+                  <AddTxButton className="shrink-0" label="Isi" draft={{ kind: "transfer", fromPotId: null, toPotId: active.id }} variant="primary" />
                 </div>
                 <p className="num mt-2 text-[28px] leading-9 font-bold tracking-[-0.02em]">
                   {rp(active.balance)}
@@ -100,7 +98,7 @@ export default async function SavingsPage() {
             ) : (
               <>
                 <p className="text-sm text-muted">Goal</p>
-                <p className="mt-1 text-[15px]">{s.goals.length ? "Semua goal telah tercapai." : <>Belum ada goal. <Link href="/pengaturan#pos" className="text-brand-ink underline underline-offset-4">Tetapkan target pada salah satu pos</Link>.</>}</p>
+                <p className="mt-1 text-[15px]">{s.goals.length ? "Semua goal telah tercapai." : <>Belum ada goal. <Link href="/pengaturan#pos" className="text-brand-ink underline underline-offset-4">Tetapkan target pada salah satu kantong tabungan</Link>.</>}</p>
               </>
             )}
           </Card>
@@ -140,7 +138,7 @@ export default async function SavingsPage() {
         <div className="grid min-w-0 grid-cols-1 gap-6">
           {/* Pots: balance, what kind of pot it is, and this month's movement */}
           <section aria-labelledby="pots">
-            <SectionHeader id="pots" title="Pos tabungan" note={`total ${rp(s.total)}`} more={<MoreLink href="/pengaturan#pos">Atur</MoreLink>} />
+            <SectionHeader id="pots" title="Kantong" note={`total ${rp(s.total - s.utama)}`} more={<MoreLink href="/pengaturan#pos">Atur</MoreLink>} />
             <ul className="rounded-2xl border border-line bg-surface">
               {s.pots.map((p) => {
                 const goal = goalById.get(p.id);
@@ -150,12 +148,12 @@ export default async function SavingsPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{p.name}</p>
                       <p className="text-xs leading-5 text-muted sm:truncate">
-                        {goal ? `Goal ${goal.n} · ${pct(goal.g.progress)} dari ${rp(goal.g.target ?? 0)}` : "Tanpa target"}
-                        {mv ? ` · Bulan ini: ${[mv.deposits ? `setor ${rp(mv.deposits)}` : "", mv.withdrawals ? `tarik ${rp(mv.withdrawals)}` : ""].filter(Boolean).join(", ")}` : " · Tidak ada aktivitas bulan ini"}
+                        {goal ? `Goal ${goal.n} · ${pct(goal.g.progress)} dari ${rp(goal.g.target ?? 0)}` : p.kind === "spending" ? "Kantong belanja" : "Tanpa target"}
+                        {mv ? ` · Bulan ini: ${[mv.inflow ? `masuk ${rp(mv.inflow)}` : "", mv.outflow ? `keluar ${rp(mv.outflow)}` : ""].filter(Boolean).join(", ")}` : " · Tidak ada aktivitas bulan ini"}
                       </p>
                     </div>
                     <span className={cn("num text-sm font-bold", p.balance === 0 && "font-normal text-muted")}>{rp(p.balance)}</span>
-                    <PotActions potId={p.id} name={p.name} balance={p.balance} depositId={deposit?.id} withdrawId={withdraw?.id} />
+                    <PotActions potId={p.id} name={p.name} balance={p.balance} />
                   </li>
                 );
               })}
@@ -163,7 +161,7 @@ export default async function SavingsPage() {
           </section>
           {recent.length > 0 && (
             <section aria-labelledby="recent-saving">
-              <SectionHeader id="recent-saving" title="Aktivitas tabungan terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
+              <SectionHeader id="recent-saving" title="Aktivitas kantong terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
               <div className="overflow-hidden rounded-2xl border border-line bg-surface"><TxList rows={recent} grouped={false} /></div>
             </section>
           )}
@@ -174,7 +172,7 @@ export default async function SavingsPage() {
       <details className="group mt-8">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
           <ChevronDown className="size-4 transition-transform group-open:rotate-180" strokeWidth={1.5} />
-          Rincian saldo per pos (format spreadsheet)
+          Rincian saldo per kantong (format spreadsheet)
         </summary>
         <Card className="mt-3 overflow-hidden">
           <Table>
@@ -184,11 +182,11 @@ export default async function SavingsPage() {
             <tbody>
               <tr><Td>Saldo acuan</Td>{s.details.map((x) => <Td key={x.potId} num className={cn(!x.openingBalance && "text-muted")}>{rp(x.openingBalance)}</Td>)}<Td num>{rp(sum((x) => x.openingBalance))}</Td></tr>
               <tr><Td>Tanggal acuan</Td>{s.details.map((x) => <Td key={x.potId} num className="text-ink-2">{x.openingDate ? shortDate(x.openingDate) : <span className="text-muted">—</span>}</Td>)}<Td /></tr>
-              <tr><Td>Setor</Td>{s.details.map((x) => <Td key={x.potId} num className={cn(!x.deposits && "text-muted")}>{x.deposits ? "+" : ""}{rp(x.deposits)}</Td>)}<Td num>+{rp(sum((x) => x.deposits))}</Td></tr>
-              <tr><Td>Tarik</Td>{s.details.map((x) => <Td key={x.potId} num className={cn(!x.withdrawals && "text-muted")}>{x.withdrawals ? "−" : ""}{rp(x.withdrawals)}</Td>)}<Td num>−{rp(sum((x) => x.withdrawals))}</Td></tr>
+              <tr><Td>Masuk</Td>{s.details.map((x) => <Td key={x.potId} num className={cn(!x.inflow && "text-muted")}>{x.inflow ? "+" : ""}{rp(x.inflow)}</Td>)}<Td num>+{rp(sum((x) => x.inflow))}</Td></tr>
+              <tr><Td>Keluar</Td>{s.details.map((x) => <Td key={x.potId} num className={cn(!x.outflow && "text-muted")}>{x.outflow ? "−" : ""}{rp(x.outflow)}</Td>)}<Td num>−{rp(sum((x) => x.outflow))}</Td></tr>
               <tr><Td>Penyesuaian</Td>{s.details.map((x) => <Td key={x.potId} num className={cn(!x.adjusted && "text-muted")}>{x.adjusted > 0 ? "+" : x.adjusted < 0 ? "−" : ""}{rp(Math.abs(x.adjusted))}</Td>)}<Td num>{rp(sum((x) => x.adjusted))}</Td></tr>
-              <TotalRow><Td>Saldo saat ini</Td>{s.details.map((x) => <Td key={x.potId} num>{rp(x.balance)}</Td>)}<Td num>{rp(s.total)}</Td></TotalRow>
-              <tr><Td className="text-muted">Total penarikan sejak awal</Td>{s.details.map((x) => <Td key={x.potId} num className="text-muted">{rp(x.withdrawnAllTime)}</Td>)}<Td num className="text-muted">{rp(sum((x) => x.withdrawnAllTime))}</Td></tr>
+              <TotalRow><Td>Saldo saat ini</Td>{s.details.map((x) => <Td key={x.potId} num>{rp(x.balance)}</Td>)}<Td num>{rp(s.total - s.utama)}</Td></TotalRow>
+              <tr><Td className="text-muted">Total keluar sejak awal</Td>{s.details.map((x) => <Td key={x.potId} num className="text-muted">{rp(x.outAllTime)}</Td>)}<Td num className="text-muted">{rp(sum((x) => x.outAllTime))}</Td></tr>
             </tbody>
           </Table>
           {s.adjustments.length > 0 && (

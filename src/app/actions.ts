@@ -9,10 +9,10 @@ import { requireSession } from "@/lib/auth/dal";
 import { confirmPassword } from "@/lib/auth/confirm";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { budgets, categories, potAdjustments, pots, settings, transactions } from "@/lib/db/schema";
+import { budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "@/lib/db/schema";
 import { isDateKey, isMonthKey, monthStart, today } from "@/lib/dates";
 import { parseAmount, parseBalance, rp } from "@/lib/money";
-import { getSavings } from "@/lib/queries";
+import { getKantong } from "@/lib/queries";
 import type { InSheet } from "@/lib/backup/format";
 import { EXPENSE_GROUPS, INCOME_GROUPS } from "@/lib/finance";
 
@@ -32,21 +32,16 @@ export async function saveTransaction(_: ActionResult | null, fd: FormData): Pro
   const categoryId = optInt(str(fd, "categoryId"));
   const amount = parseAmount(str(fd, "amount"));
   const description = str(fd, "description").slice(0, 200);
-  let potId = optInt(str(fd, "potId"));
+  // Empty: Kantong Utama.
+  const potId = optInt(str(fd, "potId"));
 
   if (!isDateKey(date)) return fail("Tanggal tidak valid.");
   if (!amount) return fail("Nominal wajib diisi.");
   if (!categoryId) return fail("Kategori wajib dipilih.");
 
-  const [cat] = await db.select().from(categories).where(eq(categories.id, categoryId));
+  const [cat] = await db.select({ id: categories.id }).from(categories).where(eq(categories.id, categoryId));
   if (!cat) return fail("Kategori tidak ditemukan.");
-  if (cat.role) {
-    if (!potId) return fail("Pos tabungan wajib dipilih.");
-    const [pot] = await db.select({ id: pots.id }).from(pots).where(eq(pots.id, potId));
-    if (!pot) return fail("Pos tabungan tidak ditemukan.");
-  } else {
-    potId = null;
-  }
+  if (potId && !(await potExists(potId))) return fail("Kantong tidak ditemukan.");
 
   const values = { date, categoryId, potId, description, amount };
   if (id) {
@@ -57,6 +52,48 @@ export async function saveTransaction(_: ActionResult | null, fd: FormData): Pro
   }
   refresh();
   return { ok: true, message: id ? "Perubahan disimpan" : "Transaksi dicatat" };
+}
+
+async function potExists(id: number) {
+  const db = await getDb();
+  const [pot] = await db.select({ id: pots.id }).from(pots).where(eq(pots.id, id));
+  return !!pot;
+}
+
+/** Money moved between two kantong (empty side: Kantong Utama). Not income or spending. */
+export async function saveTransfer(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  await requireSession();
+  const id = optInt(str(fd, "id"));
+  const date = str(fd, "date");
+  const amount = parseAmount(str(fd, "amount"));
+  const note = str(fd, "description").slice(0, 200);
+  const fromPotId = optInt(str(fd, "fromPotId"));
+  const toPotId = optInt(str(fd, "toPotId"));
+
+  if (!isDateKey(date)) return fail("Tanggal tidak valid.");
+  if (!amount) return fail("Nominal wajib diisi.");
+  if (fromPotId === toPotId) return fail("Kantong asal dan tujuan tidak boleh sama.");
+  for (const p of [fromPotId, toPotId]) if (p && !(await potExists(p))) return fail("Kantong tidak ditemukan.");
+
+  const db = await getDb();
+  const values = { date, fromPotId, toPotId, amount, note };
+  if (id) {
+    const res = await db.update(transfers).set(values).where(eq(transfers.id, id)).returning({ id: transfers.id });
+    if (!res.length) return fail("Data tidak ditemukan. Kemungkinan sudah dihapus.");
+  } else {
+    await db.insert(transfers).values(values);
+  }
+  refresh();
+  return { ok: true, message: id ? "Perubahan disimpan" : "Uang dipindahkan" };
+}
+
+export async function deleteTransfer(id: number): Promise<ActionResult> {
+  await requireSession();
+  if (!Number.isInteger(id)) return fail("ID tidak valid.");
+  const db = await getDb();
+  await db.delete(transfers).where(eq(transfers.id, id));
+  refresh();
+  return { ok: true, message: "Pindah kantong dihapus" };
 }
 
 export async function deleteTransaction(id: number): Promise<ActionResult> {
@@ -88,6 +125,21 @@ export async function setBudget(month: string, categoryId: number, raw: string):
   return { ok: true };
 }
 
+/** How much is meant to go into saving kantong this month. Empty or 0 removes the plan. */
+export async function setSavingPlan(month: string, raw: string): Promise<ActionResult> {
+  await requireSession();
+  if (!isMonthKey(month)) return fail("Bulan tidak valid.");
+  const db = await getDb();
+  const amount = raw.trim() === "" || /^0+$/.test(raw.replace(/\D/g, "")) ? 0 : parseAmount(raw);
+  if (amount === null) return fail("Nominal tidak dapat dibaca.");
+  if (amount === 0) await db.delete(savingPlans).where(eq(savingPlans.month, monthStart(month)));
+  else {
+    await db.insert(savingPlans).values({ month: monthStart(month), amount }).onConflictDoUpdate({ target: savingPlans.month, set: { amount } });
+  }
+  refresh();
+  return { ok: true };
+}
+
 export async function copyBudgets(month: string): Promise<ActionResult> {
   await requireSession();
   if (!isMonthKey(month)) return fail("Bulan tidak valid.");
@@ -105,6 +157,8 @@ export async function copyBudgets(month: string): Promise<ActionResult> {
     .insert(budgets)
     .values(rows.map((r) => ({ month: monthStart(month), categoryId: r.categoryId, amount: r.amount })))
     .onConflictDoNothing();
+  const [plan] = await db.select().from(savingPlans).where(eq(savingPlans.month, src.month));
+  if (plan) await db.insert(savingPlans).values({ month: monthStart(month), amount: plan.amount }).onConflictDoNothing();
   refresh();
   return { ok: true, message: "Budget disalin" };
 }
@@ -124,15 +178,14 @@ export async function saveCategory(_: ActionResult | null, fd: FormData): Promis
   const { name, kind, group } = parsed.data;
   const allowed: readonly string[] = kind === "expense" ? EXPENSE_GROUPS : INCOME_GROUPS;
   if (!allowed.includes(group)) return fail("Tipe tidak valid.");
-  const role = kind === "expense" && group === "Saving" ? "saving_deposit" : kind === "income" && group === "Bukan Income" ? "saving_withdraw" : null;
   const db = await getDb();
   const id = optInt(str(fd, "id"));
   try {
     if (id) {
-      await db.update(categories).set({ name, group, role }).where(eq(categories.id, id));
+      await db.update(categories).set({ name, group }).where(eq(categories.id, id));
     } else {
       const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${categories.sortOrder}), 0)::int` }).from(categories);
-      await db.insert(categories).values({ name, kind, group, role, sortOrder: max + 1 });
+      await db.insert(categories).values({ name, kind, group, sortOrder: max + 1 });
     }
   } catch {
     return fail("Nama kategori sudah digunakan.");
@@ -149,12 +202,14 @@ export async function setCategoryArchived(id: number, archived: boolean): Promis
   return { ok: true, message: archived ? "Kategori disembunyikan" : "Kategori diaktifkan kembali" };
 }
 
-// ── Pots & goals ──────────────────────────────────────────────
+// ── Kantong & goals ───────────────────────────────────────────
 
 export async function savePot(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
   await requireSession();
   const name = str(fd, "name").slice(0, 60);
-  if (!name) return fail("Nama pos wajib diisi.");
+  if (!name) return fail("Nama kantong wajib diisi.");
+  if (name.toLowerCase() === "kantong utama" || name.toLowerCase() === "utama") return fail("Nama ini sudah dipakai Kantong Utama.");
+  const kind: "saving" | "spending" = str(fd, "kind") === "spending" ? "spending" : "saving";
   const targetRaw = str(fd, "target");
   const target = targetRaw ? parseAmount(targetRaw) : null;
   if (targetRaw && !target) return fail("Target tidak dapat dibaca.");
@@ -165,9 +220,11 @@ export async function savePot(_: ActionResult | null, fd: FormData): Promise<Act
   if (openingBalance === null) return fail("Saldo awal tidak dapat dibaca.");
   const openingDate = str(fd, "openingDate") || null;
   if (openingDate && !isDateKey(openingDate)) return fail("Tanggal saldo awal tidak valid.");
-  const priority = target ? optInt(str(fd, "priority")) : null;
+  // Only saving kantong have targets; a spending kantong is just spent from.
+  const goal = kind === "saving" ? target : null;
+  const priority = goal ? optInt(str(fd, "priority")) : null;
   const note = str(fd, "note").slice(0, 300);
-  const values = { name, note, target, targetDate: target ? targetDate : null, priority, openingBalance, openingDate };
+  const values = { name, kind, note, target: goal, targetDate: goal ? targetDate : null, priority, openingBalance, openingDate };
 
   const db = await getDb();
   const id = optInt(str(fd, "id"));
@@ -178,10 +235,10 @@ export async function savePot(_: ActionResult | null, fd: FormData): Promise<Act
       await db.insert(pots).values({ ...values, sortOrder: max + 1 });
     }
   } catch {
-    return fail("Nama pos sudah digunakan.");
+    return fail("Nama kantong sudah digunakan.");
   }
   refresh();
-  return { ok: true, message: id ? "Pos tabungan diperbarui" : "Pos tabungan ditambah" };
+  return { ok: true, message: id ? "Kantong diperbarui" : "Kantong dibuat" };
 }
 
 export async function setPotArchived(id: number, archived: boolean): Promise<ActionResult> {
@@ -189,22 +246,22 @@ export async function setPotArchived(id: number, archived: boolean): Promise<Act
   const db = await getDb();
   await db.update(pots).set({ archived }).where(eq(pots.id, id));
   refresh();
-  return { ok: true, message: archived ? "Pos disembunyikan" : "Pos diaktifkan kembali" };
+  return { ok: true, message: archived ? "Kantong disembunyikan" : "Kantong diaktifkan kembali" };
 }
 
 /**
- * Match a pot against the bank: the difference between the bank's balance and the app's is saved as an adjustment
+ * Match a kantong against the bank: the difference between the bank's balance and the app's is saved as an adjustment
  * (a mismatch), never as income or spending. Bank interest is deliberately not tracked.
  */
 export async function reconcilePot(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
   await requireSession();
   const potId = optInt(str(fd, "potId"));
   const bank = parseBalance(str(fd, "bankBalance"));
-  if (!potId) return fail("Pos tidak valid.");
+  if (!potId) return fail("Kantong tidak valid.");
   if (bank === null) return fail("Saldo bank tidak dapat dibaca. Contoh: 6.781,72");
   const db = await getDb();
-  const pot = (await getSavings(db)).pots.find((p) => p.id === potId);
-  if (!pot) return fail("Pos tidak ditemukan.");
+  const pot = (await getKantong(db)).pots.find((p) => p.id === potId);
+  if (!pot) return fail("Kantong tidak ditemukan.");
   const diff = bank - pot.balance;
   if (diff === 0) return { ok: true, message: `Saldo ${pot.name} sudah sesuai dengan bank` };
   const note = str(fd, "note").slice(0, 120) || "Selisih bank";
@@ -263,7 +320,7 @@ export async function importSpreadsheet(_: ActionResult | null, fd: FormData): P
       refresh();
       return {
         ok: true,
-        message: `Backup dipulihkan: ${res.transactions} transaksi, ${res.categories} kategori, ${res.pots} pos, ${res.adjustments} penyesuaian pos, ${res.budgets} budget`,
+        message: `Backup dipulihkan: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.adjustments} penyesuaian kantong, ${res.budgets} budget`,
       };
     }
     const { parseWorkbook } = await import("@/lib/import/parse");
@@ -272,7 +329,7 @@ export async function importSpreadsheet(_: ActionResult | null, fd: FormData): P
     const res = await applyImport(await getDb(), data, replace);
     refresh();
     const warn = data.warnings.length ? ` (${data.warnings.length} catatan: ${data.warnings.slice(0, 3).join(" ")})` : "";
-    return { ok: true, message: `Impor berhasil: ${res.transactions} transaksi, ${res.categories} kategori, ${res.pots} pos, ${res.budgets} budget${warn}` };
+    return { ok: true, message: `Impor berhasil: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.budgets} budget${warn}` };
   } catch (e) {
     return fail(e instanceof Error ? e.message : "Import gagal.");
   }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
-import { getDashboard, getRecentTransactions } from "@/lib/queries";
+import { getDashboard, getRecentActivity } from "@/lib/queries";
 import { currentMonth, daysInMonth, isMonthKey, monthLabel, monthName, addMonths, today } from "@/lib/dates";
 import { budgetSplit, monthProgress } from "@/lib/finance";
 import { pct, rp } from "@/lib/money";
@@ -23,7 +23,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const { m } = await searchParams;
   const month = isMonthKey(m) ? m : currentMonth();
   const db = await getDb();
-  const [d, recent] = await Promise.all([getDashboard(db, month), getRecentTransactions(db, 5)]);
+  const [d, recent] = await Promise.all([getDashboard(db, month), getRecentActivity(db, 5)]);
   const { summary: s, carry } = d;
   const qs = month === currentMonth() ? "" : `?m=${month}`;
 
@@ -33,7 +33,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         <h1 className="mb-6 text-2xl font-medium">Selamat datang</h1>
         <Card className="p-6">
           <p className="text-base font-medium">Impor data dari spreadsheet</p>
-          <p className="mt-1 text-sm text-muted">Transaksi, budget, pos tabungan, dan goal akan diimpor sekaligus.</p>
+          <p className="mt-1 text-sm text-muted">Transaksi, budget, kantong, dan target akan diimpor sekaligus.</p>
           <Link href="/pengaturan#import" className={cn(buttonClass("primary"), "mt-5")}>Impor file .xlsx</Link>
         </Card>
       </div>
@@ -46,7 +46,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const isCurrent = month === currentMonth();
   const days = daysInMonth(month);
   const daysLeft = isCurrent ? days - Number(t.slice(8, 10)) + 1 : 0;
-  const balance = carry ? carry.closing : s.net;
+  // Kantong Utama: income and spending in it, plus money moved in from or out to other kantong.
+  const utamaChange = s.net + d.moved;
+  const balance = carry ? carry.closing : utamaChange;
   const prevName = monthName(addMonths(month, -1));
   // The budget is checked against spending in budgeted categories; the rest is shown apart.
   const split = budgetSplit(d.lines);
@@ -55,7 +57,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     .filter((l) => l.budget > 0 && l.actual > l.budget)
     .map((l) => ({ ...l, over: l.actual - l.budget }))
     .sort((a, b) => b.over - a.over);
-  const active = d.savings.goals.find((g) => g.status === "active");
+  const active = d.kantong.goals.find((g) => g.status === "active");
   const p = d.prev;
 
   return (
@@ -77,11 +79,11 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           carry
             ? [
                 { label: `Sisa ${prevName}`, amount: carry.opening, sign: null },
-                { label: s.net >= 0 ? "Bertambah bulan ini" : "Berkurang bulan ini", amount: Math.abs(s.net), sign: s.net >= 0 ? "+" : "−" },
+                { label: utamaChange >= 0 ? "Bertambah bulan ini" : "Berkurang bulan ini", amount: Math.abs(utamaChange), sign: utamaChange >= 0 ? "+" : "−" },
               ]
             : []
         }
-        note={`Uang yang bisa dipakai. Tabungan ${rp(d.savings.total)} dihitung terpisah.`}
+        note={`Uang di Kantong Utama yang bisa dipakai. Kantong lain ${rp(d.kantong.total - d.kantong.utama)} dihitung terpisah.`}
       />
 
       {/* How this month went, against last month */}
@@ -90,15 +92,15 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         items={[
           {
             label: "Pemasukan",
-            value: rp(s.realIncome),
-            delta: change(p.realIncome, s.realIncome, true),
-            sub: s.withdraw > 0 ? <>Ditambah penarikan tabungan {rp(s.withdraw)}</> : `${prevName} ${rp(p.realIncome)}`,
+            value: rp(s.income),
+            delta: change(p.income, s.income, true),
+            sub: `${prevName} ${rp(p.income)}`,
           },
           {
             label: "Pengeluaran",
             value: rp(s.expense),
             delta: change(p.expense, s.expense, false),
-            sub: `${prevName} ${rp(p.expense)}`,
+            sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} dibayar dari tabungan` : `${prevName} ${rp(p.expense)}`,
           },
           {
             label: "Saving rate",
@@ -188,11 +190,11 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           </Card>
           <Card className="flex items-center justify-between gap-4 px-5 py-5">
             <div className="min-w-0">
-              <p className="text-sm text-muted">Tabungan</p>
-              <p className="num mt-0.5 text-lg font-bold">{rp(d.savings.total)}</p>
-              <p className="text-[13px] leading-5 text-muted">{active ? `${active.name}: ${pct(active.progress)} dari ${rp(active.target ?? 0)}` : "Lihat pos dan goal"}</p>
+              <p className="text-sm text-muted">Kantong tabungan</p>
+              <p className="num mt-0.5 text-lg font-bold">{rp(d.kantong.savingTotal)}</p>
+              <p className="text-[13px] leading-5 text-muted">{active ? `${active.name}: ${pct(active.progress)} dari ${rp(active.target ?? 0)}` : "Lihat kantong dan target"}</p>
             </div>
-            <MoreLink href="/tabungan">Tabungan</MoreLink>
+            <MoreLink href="/tabungan">Kantong</MoreLink>
           </Card>
         </div>
       </div>

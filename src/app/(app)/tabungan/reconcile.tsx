@@ -26,7 +26,7 @@ export function ReconcileDialog({ open, onClose, potId, name, balance }: { open:
 }
 
 /** One "⋯" per pot row: Setor, Ambil, Cocokkan saldo. */
-export function PotActions({ potId, name, balance, depositId, withdrawId }: { potId: number; name: string; balance: number; depositId?: number; withdrawId?: number }) {
+export function PotActions({ potId, name, balance }: { potId: number; name: string; balance: number }) {
   const { openTx } = useTx();
   const [menu, setMenu] = useState(false);
   const [matching, setMatching] = useState(false);
@@ -47,9 +47,9 @@ export function PotActions({ potId, name, balance, depositId, withdrawId }: { po
         <MoreHorizontal className="size-4" strokeWidth={1.75} />
       </button>
       {menu && (
-        <div role="menu" className="absolute top-10 right-0 z-20 w-44 rounded-2xl border border-line bg-elevated p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.18)]">
-          {depositId && <button role="menuitem" className={item} onClick={() => { setMenu(false); openTx({ kind: "expense", categoryId: depositId, potId }); }}>Setor</button>}
-          {withdrawId && <button role="menuitem" className={item} onClick={() => { setMenu(false); openTx({ kind: "income", categoryId: withdrawId, potId }); }}>Tarik</button>}
+        <div role="menu" className="absolute top-10 right-0 z-20 w-56 rounded-2xl border border-line bg-elevated p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.18)]">
+          <button role="menuitem" className={item} onClick={() => { setMenu(false); openTx({ kind: "transfer", fromPotId: null, toPotId: potId }); }}>Isi dari Kantong Utama</button>
+          <button role="menuitem" className={item} onClick={() => { setMenu(false); openTx({ kind: "transfer", fromPotId: potId, toPotId: null }); }}>Ambil ke Kantong Utama</button>
           <button role="menuitem" className={item} onClick={() => { setMenu(false); setMatching(true); }}>Cocokkan saldo bank</button>
         </div>
       )}
@@ -99,7 +99,7 @@ function ReconcileForm({ potId, name, balance, onDone }: { potId: number; name: 
         <div className="mt-4">
           <Label htmlFor={`note-${potId}`}>Catatan</Label>
           <Input id={`note-${potId}`} name="note" placeholder="Selisih bank" maxLength={120} />
-          <p className="mt-1.5 text-xs text-muted">Disimpan sebagai penyesuaian saldo pos dan tidak dihitung sebagai pemasukan atau pengeluaran.</p>
+          <p className="mt-1.5 text-xs text-muted">Disimpan sebagai penyesuaian saldo kantong dan tidak dihitung sebagai pemasukan atau pengeluaran.</p>
         </div>
       )}
 
