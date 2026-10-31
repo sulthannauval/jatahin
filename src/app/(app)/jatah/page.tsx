@@ -8,7 +8,7 @@ import { addMonths, currentMonth, daysInMonth, isMonthKey, monthLabel, monthName
 import { EXPENSE_GROUPS, budgetSplit, monthProgress, type BudgetLine } from "@/lib/finance";
 import { rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, Dot, PlanBar, SectionHeader } from "@/components/ui";
+import { Card, Dot, PanelHeader, PlanBar } from "@/components/ui";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { BudgetInput, CopyBudgetButton } from "./budget-input";
 
@@ -105,19 +105,19 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
       ) : (
         <>
           {over.length > 0 && (
-            <section className="mt-8" aria-labelledby="over">
-              <SectionHeader id="over" title="Lewat jatah" note={String(over.length)} />
-              <Card className="overflow-hidden"><ul>{over.map((l) => <Watch key={l.categoryId} line={l} tone="neg" />)}</ul></Card>
-            </section>
+            <Card className="mt-3 overflow-hidden" aria-labelledby="over">
+              <PanelHeader id="over" title="Lewat jatah" note={String(over.length)} />
+              <ul>{over.map((l) => <Watch key={l.categoryId} line={l} tone="neg" />)}</ul>
+            </Card>
           )}
           {near.length > 0 && (
-            <section className="mt-8" aria-labelledby="near">
-              <SectionHeader id="near" title="Hampir habis" note={String(near.length)} />
-              <Card className="overflow-hidden"><ul>{near.map((l) => <Watch key={l.categoryId} line={l} tone="warn" />)}</ul></Card>
-            </section>
+            <Card className="mt-3 overflow-hidden" aria-labelledby="near">
+              <PanelHeader id="near" title="Hampir habis" note={String(near.length)} />
+              <ul>{near.map((l) => <Watch key={l.categoryId} line={l} tone="warn" />)}</ul>
+            </Card>
           )}
           {safe.length > 0 && (
-            <details className="group mt-8 overflow-hidden rounded-2xl border border-line bg-surface">
+            <details className="group mt-3 overflow-hidden rounded-2xl border border-line bg-surface">
               <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0 flex-1">
                   <span className="block text-[15px] font-medium">Masih aman <span className="font-normal text-muted">{safe.length}</span></span>
@@ -181,9 +181,9 @@ function EditAll({ d, cats, month, split }: { d: Awaited<ReturnType<typeof getDa
   const groups = [...new Set(lines.map((l) => cats.get(l.categoryId)!.group))];
   return (
     <>
-      <section className="mt-8" aria-label="Jatah per kategori">
-        <SectionHeader title="Jatah per kategori" note="tersimpan otomatis" />
+      <section className="mt-3" aria-label="Jatah per kategori">
         <Card className="overflow-hidden">
+          <PanelHeader title="Jatah per kategori" note="tersimpan otomatis" />
           {groups.map((g, i) => {
             const gl = lines.filter((l) => cats.get(l.categoryId)!.group === g);
             const spent = gl.reduce((a, l) => a + l.actual, 0);
@@ -205,10 +205,12 @@ function EditAll({ d, cats, month, split }: { d: Awaited<ReturnType<typeof getDa
         </Card>
       </section>
 
-      <section className="mt-8" aria-labelledby="saving-plan">
-        <SectionHeader id="saving-plan" title="Target menabung" note="terpisah dari jatah belanja" />
+      <section className="mt-3">
         <Card className="flex min-h-14 items-center justify-between gap-3 px-5 py-3">
-          <span className="text-sm">Bulan ini <span className="num text-muted">· {d.savedNet < 0 ? `berkurang ${rp(-d.savedNet)}` : `berhasil ${rp(d.savedNet)}`}</span></span>
+          <span className="min-w-0 text-sm">
+            <span className="block">Target menabung</span>
+            <span className="num block text-[13px] text-muted">Terpisah dari jatah belanja</span>
+          </span>
           <div className="w-32 shrink-0 sm:w-36">
             <BudgetInput key={`${month}-plan-${d.savingPlan}`} month={month} categoryId={null} value={d.savingPlan ?? 0} label="Target menabung" />
           </div>
@@ -216,9 +218,9 @@ function EditAll({ d, cats, month, split }: { d: Awaited<ReturnType<typeof getDa
       </section>
 
       {split.unplannedLines.length > 0 && (
-        <section className="mt-8" aria-labelledby="unplanned">
-          <SectionHeader id="unplanned" title="Di luar jatah" note={rp(split.unplanned)} />
+        <section className="mt-3" aria-labelledby="unplanned">
           <Card className="overflow-hidden">
+            <PanelHeader id="unplanned" title="Di luar jatah" note={rp(split.unplanned)} />
             <ul>{split.unplannedLines.map((l) => <UnplannedRow key={l.categoryId} line={l} name={cats.get(l.categoryId)!.name} group={cats.get(l.categoryId)!.group} month={month} editing />)}</ul>
           </Card>
         </section>

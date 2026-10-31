@@ -157,6 +157,22 @@ export function MoreLink({ href, children = "Lihat semua" }: { href: string; chi
 }
 
 /** Section title with an optional quiet note and the way to go deeper. */
+/**
+ * The title row inside one card that holds a list. A heading outside a card (SectionHeader) is only for a group of
+ * separate cards; a single card carries its own title, so cards side by side start on the same line.
+ */
+export function PanelHeader({ id, title, note, more }: { id?: string; title: string; note?: ReactNode; more?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-rule px-4 py-3 sm:px-5">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <h2 id={id} className="text-[15px] font-medium">{title}</h2>
+        {note && <span className="num text-[13px] text-muted">{note}</span>}
+      </div>
+      {more}
+    </div>
+  );
+}
+
 export function SectionHeader({ title, note, more, id }: { title: string; note?: ReactNode; more?: ReactNode; id?: string }) {
   return (
     <div className="mb-2.5 flex items-center justify-between gap-3">
