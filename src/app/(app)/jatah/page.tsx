@@ -74,14 +74,20 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
             {left > 0 && isCurrent ? <>, sekitar <span className="text-ink-2">{rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari</span> untuk {daysLeft} hari tersisa</> : ""}.
             {overIncome > 0 && <span className="block text-warn">Jatah dan rencana menabung {rp(overIncome)} di atas pemasukan {monthName(addMonths(month, -1))}.</span>}
           </p>
-          {(d.savingPlan !== null || d.saved > 0) && (
-            <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-rule pt-3.5 text-sm">
-              <span className="text-muted">Rencana menabung</span>
-              <span className="num text-right">
-                <span className="font-bold">{rp(d.saved)}</span>
-                {d.savingPlan !== null && <span className="text-muted"> / {rp(d.savingPlan)}</span>}
-                {d.savingPlan !== null && d.savingPlan > 0 && (d.saved >= d.savingPlan ? <span className="text-pos"> tercapai</span> : <span className="text-muted"> · kurang {rp(d.savingPlan - d.saved)}</span>)}
-              </span>
+          {(d.savingPlan !== null || d.saved > 0 || d.summary.savingsOut > 0) && (
+            <div className="mt-4 border-t border-rule pt-3.5 text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-muted">Rencana menabung</span>
+                <span className="num shrink-0 text-right">
+                  <span className={cn("font-bold", d.savedNet < 0 && "text-neg")}>{d.savedNet > 0 ? "+" : d.savedNet < 0 ? "−" : ""}{rp(Math.abs(d.savedNet))}</span>
+                  {d.savingPlan !== null && <span className="text-muted"> / {rp(d.savingPlan)}</span>}
+                </span>
+              </div>
+              {/* The net figure only makes sense with what went in and what came back out */}
+              <p className="num mt-1 text-[13px] leading-5 text-muted">
+                {d.summary.savingsOut > 0 ? <>Masuk {rp(d.saved)}, diambil lagi {rp(d.summary.savingsOut)}. </> : null}
+                {d.savingPlan !== null && d.savingPlan > 0 && (d.savedNet >= d.savingPlan ? <span className="text-pos">Rencana tercapai.</span> : <>Kurang {rp(d.savingPlan - d.savedNet)} dari rencana.</>)}
+              </p>
             </div>
           )}
         </Card>
@@ -202,9 +208,9 @@ function EditAll({ d, cats, month, split }: { d: Awaited<ReturnType<typeof getDa
       </section>
 
       <section className="mt-8" aria-labelledby="saving-plan">
-        <SectionHeader id="saving-plan" title="Rencana menabung" note="dipindah ke kantong tabungan, tidak termasuk jatah belanja" />
+        <SectionHeader id="saving-plan" title="Rencana menabung" note="bersih yang tetap di kantong tabungan, tidak termasuk jatah belanja" />
         <Card className="flex min-h-14 items-center justify-between gap-3 px-5 py-3">
-          <span className="text-sm">Bulan ini <span className="num text-muted">· sudah {rp(d.saved)}</span></span>
+          <span className="text-sm">Bulan ini <span className="num text-muted">· bersih {d.savedNet < 0 ? "−" : ""}{rp(Math.abs(d.savedNet))}</span></span>
           <div className="w-32 shrink-0 sm:w-36">
             <BudgetInput key={`${month}-plan-${d.savingPlan}`} month={month} categoryId={null} value={d.savingPlan ?? 0} label="Rencana menabung" />
           </div>
