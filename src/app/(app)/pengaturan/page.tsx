@@ -71,7 +71,7 @@ export default async function SettingsPage() {
               <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" strokeWidth={1.75} />
             </summary>
             <p className="mt-3 mb-4 text-[13px] leading-5 text-muted">
-              Sisa dana setiap bulan (pemasukan dikurangi pengeluaran) otomatis menjadi saldo awal bulan berikutnya, dimulai dari bulan ini. Pengaturan ini membuat Saldo bersih di Ringkasan berkesinambungan antarbulan.
+              Sisa Kantong Utama setiap bulan otomatis menjadi saldo awal bulan berikutnya, dimulai dari bulan ini. Pengaturan ini membuat saldo Kantong Utama di Beranda berkesinambungan antarbulan.
             </p>
             <SettingsForm carryStartMonth={cfg.carryStartMonth} carryStartBalance={cfg.carryStartBalance} />
           </details>
