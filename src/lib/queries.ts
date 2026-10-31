@@ -168,7 +168,9 @@ export async function getDashboard(db: DB, month: string, todayDate = todayFn())
   const table = trendTable(sums, infos, nets, cfg.carryStartMonth, cfg.carryStartBalance, first && first < month ? first : month, tableTo);
   // Kantong Utama's change this month that isn't income or spending (moves, spending from other kantong).
   const moved = (nets.get(month) ?? 0) - summary.net;
-  return { cats, summary, prev, carry, moved, trend, table, lines, budgetTotal, kantong, savingPlan, saved, settings: cfg };
+  // What stayed saved: money in, less what was taken back out of saving kantong this month (moved or spent).
+  const savedNet = saved - summary.savingsOut;
+  return { cats, summary, prev, carry, moved, trend, table, lines, budgetTotal, kantong, savingPlan, saved, savedNet, settings: cfg };
 }
 
 export type TxFilter = { month: string; q?: string; categoryId?: number };

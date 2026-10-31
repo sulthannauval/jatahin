@@ -43,6 +43,8 @@ describe.skipIf(!existsSync(FILE))("import from MoneyFlows.xlsx", () => {
     expect(d.summary.net + d.moved).toBe(260330);
     expect(d.savingPlan).toBe(1500000);
     expect(d.saved).toBe(1500000);
+    // 6.300.000 came back out the same month, so the plan was not kept.
+    expect(d.savedNet).toBe(-4800000);
     expect(d.summary.byGroup.get("Wajib")).toBe(2279602);
     expect(d.summary.byGroup.get("Kebutuhan")).toBe(596100);
     expect(d.summary.byGroup.get("Keinginan")).toBe(1452990);
