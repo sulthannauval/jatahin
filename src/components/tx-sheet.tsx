@@ -216,7 +216,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
           </span>
         </div>
 
-        {isMove && <p className="-mt-3 mb-4 text-center text-xs text-muted">Tidak dihitung sebagai pemasukan atau pengeluaran</p>}
+        {isMove && <p className="-mt-3 mb-4 text-center text-xs text-muted">Bukan pemasukan atau pengeluaran</p>}
 
         {!isEdit && !isMove && frequent.length > 0 && (
           <div className="mb-3">

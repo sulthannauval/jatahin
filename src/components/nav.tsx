@@ -3,24 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { ChartColumn, Home, ListOrdered, LogOut, PiggyBank, Plus, Settings2, Target } from "lucide-react";
+import { ChartNoAxesCombined, ChartPie, House, LogOut, Plus, ReceiptText, Settings2, WalletCards } from "lucide-react";
 import { logout } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { useTx } from "./tx-context";
 import { ThemeToggle } from "./theme-toggle";
 
+// Each icon is the thing itself: a receipt for entries, portions of a pie for jatah (like the mark),
+// a wallet holding cards for kantong, a rising line for reports.
 const items = [
-  { href: "/", label: "Ringkasan", short: "Ringkasan", icon: Home },
-  { href: "/transaksi", label: "Transaksi", short: "Transaksi", icon: ListOrdered },
-  { href: "/budget", label: "Budget", short: "Budget", icon: Target },
-  { href: "/tabungan", label: "Tabungan", short: "Tabungan", icon: PiggyBank },
-  { href: "/laporan", label: "Laporan", short: "Laporan", icon: ChartColumn },
+  { href: "/", label: "Beranda", short: "Beranda", icon: House },
+  { href: "/transaksi", label: "Transaksi", short: "Transaksi", icon: ReceiptText },
+  { href: "/jatah", label: "Jatah", short: "Jatah", icon: ChartPie },
+  { href: "/kantong", label: "Kantong", short: "Kantong", icon: WalletCards },
+  { href: "/laporan", label: "Laporan", short: "Laporan", icon: ChartNoAxesCombined },
   { href: "/pengaturan", label: "Pengaturan", short: "Atur", icon: Settings2 },
 ];
 
-function useActive() {
-  const path = usePathname();
-  return (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+/** Which item is current. `path` null: not known yet (the shell rendered before the URL is read). */
+const activeIn = (path: string | null) => (href: string) => (path === null ? false : href === "/" ? path === "/" : path.startsWith(href));
+
+/**
+ * The navigation reads the URL, which a route with params (/kantong/[id]) only knows per request. The layout
+ * renders these with no item marked inside <Suspense>, then the URL-aware version.
+ */
+export function SidebarNav() {
+  return <Sidebar path={usePathname()} />;
+}
+export function BottomNavLive() {
+  return <BottomNav path={usePathname()} />;
 }
 
 /** The product mark, drawn inline so it follows the theme: a mint tile with a black coin. */
@@ -37,8 +48,8 @@ export function Mark({ className }: { className?: string }) {
 const COIN = "M32 32 49.12 26.44A18 18 0 1 1 32 14Z";
 const PORTION = "M32 32V14a18 18 0 0 1 17.12 12.44Z";
 
-export function Sidebar() {
-  const isActive = useActive();
+export function Sidebar({ path = null }: { path?: string | null }) {
+  const isActive = activeIn(path);
   const { openTx } = useTx();
   const [leaving, start] = useTransition();
   return (
@@ -93,8 +104,8 @@ function NavLink({ href, active, icon, children }: { href: string; active: boole
 }
 
 /** Phone: a bottom bar of five destinations; the centre button is the screen's one primary action. */
-export function BottomNav() {
-  const isActive = useActive();
+export function BottomNav({ path = null }: { path?: string | null }) {
+  const isActive = activeIn(path);
   const { openTx } = useTx();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Navigasi utama">
@@ -122,7 +133,7 @@ function BottomItem({ item: { href, short, icon: Icon }, active }: { item: (type
   );
 }
 
-/** Phone header: the product's mark and the settings link (the sidebar is folded away). */
+/** Phone header: the product's mark, then Laporan (which has no room in the bottom bar) and settings. */
 export function MobileBar() {
   return (
     <div className="mb-4 flex h-10 items-center justify-between md:hidden">
@@ -132,6 +143,9 @@ export function MobileBar() {
       </Link>
       <div className="flex items-center gap-1">
         <ThemeToggle compact />
+        <Link href="/laporan" aria-label="Laporan" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised">
+          <ChartNoAxesCombined className="size-5" strokeWidth={1.5} />
+        </Link>
         <Link href="/pengaturan" aria-label="Pengaturan" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised">
           <Settings2 className="size-5" strokeWidth={1.5} />
         </Link>

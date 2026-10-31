@@ -6,25 +6,26 @@ import { currentMonth, daysInMonth, isMonthKey, monthLabel, monthName, addMonths
 import { budgetSplit, monthProgress } from "@/lib/finance";
 import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, Dot, MoreLink, PlanBar, buttonClass } from "@/components/ui";
+import { Card, MoreLink, PanelHeader, PlanBar, Progress, SectionHeader, buttonClass } from "@/components/ui";
 import { KpiStrip, change } from "@/components/kpi";
 import { BalanceCard } from "@/components/balance";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { TxList } from "@/components/tx-list";
 
 /**
- * One question: "how is my money this month?"
- * The balance answers it first, like a bank screen, with how it was reached; a KPI strip follows (money in, money out,
- * saving rate, each against last month); under it the budget
- * with what needs attention, and the latest entries. Everything else lives on /laporan.
+ * One question: "how much money do I have?" Kantong Utama answers it first, like a bank screen; the other kantong
+ * sit in a strip under it. Then the month in two figures, the jatah with what needs attention, and the latest
+ * entries. The saving rate and everything else live on /laporan.
  */
+const STRIP_COLS = ["", "lg:grid-cols-1", "lg:grid-cols-2", "lg:grid-cols-3", "lg:grid-cols-4", "lg:grid-cols-5"];
+
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   await requireSession();
   const { m } = await searchParams;
   const month = isMonthKey(m) ? m : currentMonth();
   const db = await getDb();
   const [d, recent] = await Promise.all([getDashboard(db, month), getRecentActivity(db, 5)]);
-  const { summary: s, carry } = d;
+  const { summary: s, prev: p, carry, kantong: k } = d;
   const qs = month === currentMonth() ? "" : `?m=${month}`;
 
   if (d.cats.length === 0) {
@@ -33,15 +34,13 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         <h1 className="mb-6 text-2xl font-medium">Selamat datang</h1>
         <Card className="p-6">
           <p className="text-base font-medium">Impor data dari spreadsheet</p>
-          <p className="mt-1 text-sm text-muted">Transaksi, budget, kantong, dan target akan diimpor sekaligus.</p>
+          <p className="mt-1 text-sm text-muted">Transaksi, jatah, kantong, dan target akan diimpor sekaligus.</p>
           <Link href="/pengaturan#import" className={cn(buttonClass("primary"), "mt-5")}>Impor file .xlsx</Link>
         </Card>
       </div>
     );
   }
 
-  const catName = new Map(d.cats.map((c) => [c.id, c.name]));
-  const catGroup = new Map(d.cats.map((c) => [c.id, c.group]));
   const t = today();
   const isCurrent = month === currentMonth();
   const days = daysInMonth(month);
@@ -50,153 +49,119 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const utamaChange = s.net + d.moved;
   const balance = carry ? carry.closing : utamaChange;
   const prevName = monthName(addMonths(month, -1));
-  // The budget is checked against spending in budgeted categories; the rest is shown apart.
+  // The jatah is checked against spending in categories that have one; the rest is shown apart.
   const split = budgetSplit(d.lines);
   const left = d.budgetTotal - split.planned;
-  const attention = d.lines
-    .filter((l) => l.budget > 0 && l.actual > l.budget)
-    .map((l) => ({ ...l, over: l.actual - l.budget }))
-    .sort((a, b) => b.over - a.over);
-  const active = d.kantong.goals.find((g) => g.status === "active");
-  const p = d.prev;
+  const catName = new Map(d.cats.map((c) => [c.id, c.name]));
+  const over = d.lines.filter((l) => l.budget > 0 && l.actual > l.budget).sort((a, b) => b.actual - b.budget - (a.actual - a.budget));
+  const goals = new Map(k.goals.map((g) => [g.id, g]));
 
   return (
     <div className="mx-auto max-w-[760px] lg:max-w-[1120px]">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-medium tracking-[-0.01em]">{monthLabel(month)}</h1>
-          <p className="mt-0.5 text-sm text-muted">Dibandingkan dengan {prevName}</p>
-        </div>
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h1 className="text-[22px] leading-8 font-medium tracking-[-0.01em] md:text-2xl">{monthLabel(month)}</h1>
         <MonthSwitcher month={month} path="/" compact />
       </div>
 
       {/* The balance first, like a bank screen; how it was reached sits beside it */}
       <BalanceCard
-        label={isCurrent ? "Saldo saat ini" : `Saldo akhir ${monthLabel(month)}`}
+        label={isCurrent ? "Saldo Kantong Utama" : `Saldo Kantong Utama akhir ${monthName(month)}`}
         balance={balance}
         // Without a carry-over the balance is this month's change itself, so there is nothing to break down.
         lines={
           carry
             ? [
                 { label: `Sisa ${prevName}`, amount: carry.opening, sign: null },
-                { label: utamaChange >= 0 ? "Bertambah bulan ini" : "Berkurang bulan ini", amount: Math.abs(utamaChange), sign: utamaChange >= 0 ? "+" : "−" },
+                { label: utamaChange >= 0 ? "Naik bulan ini" : "Turun bulan ini", amount: Math.abs(utamaChange), sign: utamaChange >= 0 ? "+" : "−" },
               ]
             : []
         }
-        note={`Uang di Kantong Utama yang bisa dipakai. Kantong lain ${rp(d.kantong.total - d.kantong.utama)} dihitung terpisah.`}
+        note="Siap dipakai. Uang di kantong lain terpisah."
       />
 
-      {/* How this month went, against last month */}
+      {/* The other kantong, swiped sideways on a phone */}
+      {k.pots.length > 0 && (
+        <section className="mt-6" aria-labelledby="h-kantong">
+          <SectionHeader id="h-kantong" title="Kantong lain" note={rp(k.total - k.utama)} more={<MoreLink href="/kantong">Semua kantong</MoreLink>} />
+          {/* One row on a wide screen: as many columns as kantong (up to five), the rest behind "Semua kantong" */}
+          <ul className={cn("no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 lg:grid lg:overflow-visible lg:[&>li:nth-child(n+6)]:hidden", STRIP_COLS[Math.min(k.pots.length, 5)])}>
+            {k.pots.map((pt) => {
+              const g = goals.get(pt.id);
+              return (
+                <li key={pt.id} className="w-40 shrink-0 lg:w-auto">
+                  <Link href={`/kantong/${pt.id}`} className="flex h-full flex-col rounded-2xl border border-line bg-surface px-3.5 py-3 transition-colors hover:bg-raised/50">
+                    <span className="truncate text-[13px] font-medium">{pt.name}</span>
+                    <span className={cn("num mt-0.5 text-base font-bold tracking-[-0.01em]", pt.balance === 0 && "text-ink-2", pt.balance < 0 && "text-neg")}>{rp(pt.balance)}</span>
+                    {g ? (
+                      <>
+                        <Progress className="mt-2 h-1" value={g.progress} hue={g.status === "active"} label={`Progress ${pt.name}`} />
+                        <span className="num mt-1.5 text-xs text-muted">{pct(g.progress)} dari {rp(g.target ?? 0)}</span>
+                      </>
+                    ) : (
+                      <span className="mt-auto pt-1.5 text-xs text-muted">{pt.kind === "spending" ? "Kantong belanja" : "Tanpa target"}</span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* The month in two figures, against last month */}
       <KpiStrip
-        className="mt-4"
+        className="mt-6"
         items={[
-          {
-            label: "Pemasukan",
-            value: rp(s.income),
-            delta: change(p.income, s.income, true),
-            sub: `${prevName} ${rp(p.income)}`,
-          },
+          { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
           {
             label: "Pengeluaran",
             value: rp(s.expense),
             delta: change(p.expense, s.expense, false),
-            sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} dibayar dari tabungan` : `${prevName} ${rp(p.expense)}`,
-          },
-          {
-            label: "Saving rate",
-            value: pct(s.savingRate, 1),
-            tone: s.savingRate !== null && s.savingRate < 0 ? "neg" : undefined,
-            delta:
-              s.savingRate !== null && p.savingRate !== null
-                ? (() => {
-                    // Difference in percentage points (36,3% → 35,2% = 1,1 poin), not a relative change.
-                    const pts = Math.round((s.savingRate - p.savingRate) * 1000) / 10;
-                    return {
-                      text: `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(Math.abs(pts))} poin`,
-                      dir: pts > 0 ? ("up" as const) : pts < 0 ? ("down" as const) : ("flat" as const),
-                      good: pts >= 0,
-                    };
-                  })()
-                : undefined,
-            sub: p.savingRate !== null ? `${prevName} ${pct(p.savingRate, 1)}` : "Porsi pemasukan yang disimpan",
+            sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} pakai tabungan` : `${prevName} ${rp(p.expense)}`,
           },
         ]}
       />
 
       <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
-        {/* Budget, with what needs attention */}
-        <Card>
-          <div className="flex items-center justify-between gap-3 px-5 pt-5">
-            <h2 className="text-base font-medium">Budget</h2>
-            <MoreLink href={`/budget${qs}`}>Detail</MoreLink>
+        {/* The jatah, with what needs attention: one card, so its label sits inside */}
+        <Card className="px-5 py-5" aria-labelledby="h-jatah">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="h-jatah" className="text-sm text-muted">Jatah belanja {monthName(month)}</h2>
+            <MoreLink href={`/jatah${qs}`}>Lihat</MoreLink>
           </div>
           {d.budgetTotal > 0 ? (
-            <div className="px-5 pt-4 pb-5">
-              <div className="flex items-baseline justify-between gap-4">
-                <p className="text-sm text-muted">{left >= 0 ? "Sisa" : "Melebihi"}</p>
-                <p className="num text-sm text-muted">{rp(split.planned)} dari {rp(d.budgetTotal)}</p>
-              </div>
-              <p className={cn("num mt-0.5 text-[28px] leading-9 font-bold tracking-[-0.02em]", left < 0 && "text-neg")}>{rp(Math.abs(left))}</p>
+            <>
+              <p className={cn("num mt-1 text-[22px] leading-8 font-bold tracking-[-0.02em]", left < 0 && "text-neg")}>{left >= 0 ? "Sisa" : "Lewat"} {rp(Math.abs(left))}</p>
               <PlanBar className="mt-3" spent={split.planned} plan={d.budgetTotal} marker={isCurrent ? monthProgress(month, t, days) : undefined} hue />
               <p className="num mt-2.5 text-[13px] text-muted">
-                {pct(split.planned / d.budgetTotal)} terpakai
-                {left >= 0 && isCurrent ? ` · sekitar ${rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari untuk ${daysLeft} hari tersisa` : ""}
+                {rp(split.planned)} dari {rp(d.budgetTotal)}
+                {left > 0 && isCurrent ? ` · sekitar ${rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari` : ""}
               </p>
-
-              {attention.length > 0 && (
-                <div className="mt-5">
-                  <p className="mb-1 text-sm font-medium">Perlu perhatian</p>
-                  <ul>
-                    {attention.slice(0, 3).map((l) => (
-                      <li key={l.categoryId} className="flex min-h-12 items-center justify-between gap-4 border-b border-rule last:border-b-0">
-                        <div className="min-w-0">
-                          <p className="flex items-center gap-2 text-sm"><Dot group={catGroup.get(l.categoryId)} /><span className="truncate">{catName.get(l.categoryId)}</span></p>
-                          <p className="num pl-4 text-xs text-muted">{rp(l.actual)} dari {rp(l.budget)}</p>
-                        </div>
-                        <p className="num shrink-0 text-sm text-neg">lebih {rp(l.over)}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              {over.length > 0 && (
+                <ul className="mt-4 border-t border-rule">
+                  {over.slice(0, 3).map((l) => (
+                    <li key={l.categoryId} className="flex min-h-11 items-center justify-between gap-4 border-b border-rule py-2 last:border-b-0">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm">{catName.get(l.categoryId)}</span>
+                        <span className="num block text-xs text-muted">{rp(l.actual)} dari {rp(l.budget)}</span>
+                      </span>
+                      <span className="num shrink-0 text-sm text-neg">lebih {rp(l.actual - l.budget)}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
-
-              {split.unplanned > 0 && (
-                <div className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-field px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm">Di luar budget</p>
-                    <p className="text-xs leading-5 text-muted">{split.unplannedLines.map((l) => catName.get(l.categoryId)).join(", ")}</p>
-                  </div>
-                  <p className="num shrink-0 text-sm font-bold">{rp(split.unplanned)}</p>
-                </div>
-              )}
-            </div>
+            </>
           ) : (
-            <p className="px-5 pt-3 pb-5 text-sm text-muted">
-              Budget untuk bulan ini belum diatur. <Link href={`/budget${qs}`} className="text-ink underline underline-offset-4">Atur budget</Link>
+            <p className="mt-2 text-sm text-muted">
+              Jatah bulan ini belum diatur. <Link href={`/jatah${qs}`} className="text-ink underline underline-offset-4">Atur jatah</Link>
             </p>
           )}
         </Card>
 
-        {/* Latest entries, then savings */}
-        <div className="grid min-w-0 grid-cols-1 gap-6">
-          <Card className="overflow-hidden">
-            <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
-              <h2 className="text-base font-medium">Transaksi terakhir</h2>
-              <MoreLink href="/transaksi">Semua</MoreLink>
-            </div>
-            <div className="border-t border-rule">
-              {recent.length ? <TxList rows={recent} grouped={false} /> : <p className="px-5 py-6 text-sm text-muted">Belum ada transaksi.</p>}
-            </div>
-          </Card>
-          <Card className="flex items-center justify-between gap-4 px-5 py-5">
-            <div className="min-w-0">
-              <p className="text-sm text-muted">Kantong tabungan</p>
-              <p className="num mt-0.5 text-lg font-bold">{rp(d.kantong.savingTotal)}</p>
-              <p className="text-[13px] leading-5 text-muted">{active ? `${active.name}: ${pct(active.progress)} dari ${rp(active.target ?? 0)}` : "Lihat kantong dan target"}</p>
-            </div>
-            <MoreLink href="/tabungan">Kantong</MoreLink>
-          </Card>
-        </div>
+        <Card className="overflow-hidden" aria-labelledby="h-recent">
+          <PanelHeader id="h-recent" title="Transaksi terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
+          {recent.length ? <TxList rows={recent} grouped={false} /> : <p className="px-5 py-6 text-sm text-muted">Belum ada transaksi.</p>}
+        </Card>
       </div>
     </div>
   );

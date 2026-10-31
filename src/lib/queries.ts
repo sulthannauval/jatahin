@@ -168,7 +168,9 @@ export async function getDashboard(db: DB, month: string, todayDate = todayFn())
   const table = trendTable(sums, infos, nets, cfg.carryStartMonth, cfg.carryStartBalance, first && first < month ? first : month, tableTo);
   // Kantong Utama's change this month that isn't income or spending (moves, spending from other kantong).
   const moved = (nets.get(month) ?? 0) - summary.net;
-  return { cats, summary, prev, carry, moved, trend, table, lines, budgetTotal, kantong, savingPlan, saved, settings: cfg };
+  // What stayed saved: money in, less what was taken back out of saving kantong this month (moved or spent).
+  const savedNet = saved - summary.savingsOut;
+  return { cats, summary, prev, carry, moved, trend, table, lines, budgetTotal, kantong, savingPlan, saved, savedNet, settings: cfg };
 }
 
 export type TxFilter = { month: string; q?: string; categoryId?: number };
@@ -241,6 +243,15 @@ export async function getRecentActivity(db: DB, limit = 6, kantongOnly = false):
   const [txs, moved] = await Promise.all([
     txQuery(db).where(kantongOnly ? isNotNull(transactions.potId) : undefined).orderBy(desc(transactions.date), desc(transactions.createdAt)).limit(limit),
     transferQuery(db).orderBy(desc(transfers.date), desc(transfers.createdAt)).limit(limit),
+  ]);
+  return merge(txs, moved).slice(0, limit);
+}
+
+/** What happened in one kantong: moves in and out, and income or spending in it. Newest first. */
+export async function getPotActivity(db: DB, potId: number, limit = 30): Promise<ActivityRow[]> {
+  const [txs, moved] = await Promise.all([
+    txQuery(db).where(eq(transactions.potId, potId)).orderBy(desc(transactions.date), desc(transactions.createdAt)).limit(limit),
+    transferQuery(db).where(or(eq(transfers.fromPotId, potId), eq(transfers.toPotId, potId))).orderBy(desc(transfers.date), desc(transfers.createdAt)).limit(limit),
   ]);
   return merge(txs, moved).slice(0, limit);
 }

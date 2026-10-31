@@ -33,7 +33,7 @@ export function BudgetInput({ month, categoryId, value, label }: { month: string
         value={v}
         inputMode="numeric"
         placeholder="0"
-        aria-label={categoryId === null ? label : `Budget ${label}`}
+        aria-label={categoryId === null ? label : `Jatah ${label}`}
         onChange={(e) => setV(groupDigits(e.target.value))}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setV(saved); } }}
@@ -62,7 +62,7 @@ export function CopyBudgetButton({ month }: { month: string }) {
       })}
     >
       {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Copy className="size-3.5" />}
-      Salin dari bulan sebelumnya
+      Salin dari bulan lalu
     </Button>
   );
 }

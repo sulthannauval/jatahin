@@ -26,6 +26,13 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Old addresses from before Budget became Jatah and Tabungan became Kantong (bookmarks, the installed app).
+  async redirects() {
+    return [
+      { source: "/budget", destination: "/jatah", permanent: false },
+      { source: "/tabungan", destination: "/kantong", permanent: false },
+    ];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
