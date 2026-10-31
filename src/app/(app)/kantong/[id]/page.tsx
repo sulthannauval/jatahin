@@ -9,7 +9,7 @@ import { neededPerMonth } from "@/lib/finance";
 import { monthLabel, shortDate, today } from "@/lib/dates";
 import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, EmptyState, Progress, SectionHeader } from "@/components/ui";
+import { Card, EmptyState, PanelHeader, Progress } from "@/components/ui";
 import { TxList } from "@/components/tx-list";
 import { AdjustmentList, KantongActions } from "../reconcile";
 
@@ -64,28 +64,24 @@ export default async function KantongDetailPage({ params }: PageProps<"/kantong/
       </Card>
 
       {goal && goal.status !== "done" && (
-        <section className="mt-8" aria-labelledby="eta">
-          <SectionHeader id="eta" title="Kapan tercapai?" />
-          <Card className="px-5 py-1 sm:px-6">
-            <dl className="divide-y divide-rule text-sm">
-              {need !== null && (
-                <Line label="Perlu per bulan" value={`${rp(need)}/bulan`} />
-              )}
-              <Line label="Rata-rata 3 bulan terakhir" value={`${rp(goal.pace)}/bulan`} tone={need !== null && goal.pace < need ? "warn" : undefined} />
-              <Line label={waitsFor ? `Perkiraan tercapai (setelah ${waitsFor.name})` : "Perkiraan tercapai"} value={goal.eta ? monthLabel(goal.eta) : "—"} />
-            </dl>
-          </Card>
-          <p className="mt-2.5 text-[13px] leading-5 text-muted">
-            {goal.eta
-              ? "Target diisi satu per satu sesuai prioritas."
-              : "Belum bisa diperkirakan: 3 bulan terakhir belum ada uang masuk."}
+        <Card className="mt-3 px-5 pt-4 pb-1 sm:px-6" aria-labelledby="eta">
+          <h2 id="eta" className="text-sm text-muted">Kapan tercapai?</h2>
+          <dl className="mt-1 divide-y divide-rule text-sm">
+            {need !== null && (
+              <Line label="Perlu per bulan" value={`${rp(need)}/bulan`} />
+            )}
+            <Line label="Rata-rata 3 bulan terakhir" value={`${rp(goal.pace)}/bulan`} tone={need !== null && goal.pace < need ? "warn" : undefined} />
+            <Line label={waitsFor ? `Perkiraan tercapai (setelah ${waitsFor.name})` : "Perkiraan tercapai"} value={goal.eta ? monthLabel(goal.eta) : "—"} />
+          </dl>
+          <p className="border-t border-rule py-3 text-[13px] leading-5 text-muted">
+            {goal.eta ? "Target diisi satu per satu sesuai prioritas." : "Belum bisa diperkirakan: 3 bulan terakhir belum ada uang masuk."}
           </p>
-        </section>
+        </Card>
       )}
 
-      <section className="mt-8" aria-labelledby="riwayat">
-        <SectionHeader id="riwayat" title="Riwayat" note={mv ? `bulan ini masuk ${rp(mv.inflow)}, keluar ${rp(mv.outflow)}` : undefined} />
+      <section className="mt-3" aria-labelledby="riwayat">
         <Card className="overflow-hidden">
+          <PanelHeader id="riwayat" title="Riwayat" note={mv ? `bulan ini +${rp(mv.inflow)} −${rp(mv.outflow)}` : undefined} />
           {activity.length ? <TxList rows={activity} grouped={false} pot={id} /> : <EmptyState title="Belum ada uang masuk atau keluar">Tekan Isi untuk menambah saldo.</EmptyState>}
         </Card>
         {adjustments.length > 0 && (

@@ -8,7 +8,7 @@ import { monthLabel, shortDate } from "@/lib/dates";
 import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import type { Goal } from "@/lib/finance";
-import { Card, MoreLink, Progress, SectionHeader } from "@/components/ui";
+import { Card, MoreLink, PanelHeader, Progress, SectionHeader } from "@/components/ui";
 import { AddTxButton, TxList } from "@/components/tx-list";
 import { AdjustmentList } from "./reconcile";
 import { Table, Td, Th, TotalRow } from "@/components/table";
@@ -101,10 +101,10 @@ export default async function KantongPage() {
       </section>
 
       {recent.length > 0 && (
-        <section className="mt-8" aria-labelledby="k-recent">
-          <SectionHeader id="k-recent" title="Aktivitas terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
-          <Card className="overflow-hidden"><TxList rows={recent} grouped={false} /></Card>
-        </section>
+        <Card className="mt-8 overflow-hidden" aria-labelledby="k-recent">
+          <PanelHeader id="k-recent" title="Aktivitas terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
+          <TxList rows={recent} grouped={false} />
+        </Card>
       )}
 
       {/* The spreadsheet's table, on request */}

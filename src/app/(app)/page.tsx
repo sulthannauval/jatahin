@@ -6,7 +6,7 @@ import { currentMonth, daysInMonth, isMonthKey, monthLabel, monthName, addMonths
 import { budgetSplit, monthProgress } from "@/lib/finance";
 import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, MoreLink, PlanBar, Progress, SectionHeader, buttonClass } from "@/components/ui";
+import { Card, MoreLink, PanelHeader, PlanBar, Progress, SectionHeader, buttonClass } from "@/components/ui";
 import { KpiStrip, change } from "@/components/kpi";
 import { BalanceCard } from "@/components/balance";
 import { MonthSwitcher } from "@/components/month-switcher";
@@ -17,6 +17,8 @@ import { TxList } from "@/components/tx-list";
  * sit in a strip under it. Then the month in two figures, the jatah with what needs attention, and the latest
  * entries. The saving rate and everything else live on /laporan.
  */
+const STRIP_COLS = ["", "lg:grid-cols-1", "lg:grid-cols-2", "lg:grid-cols-3", "lg:grid-cols-4", "lg:grid-cols-5"];
+
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   await requireSession();
   const { m } = await searchParams;
@@ -81,7 +83,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       {k.pots.length > 0 && (
         <section className="mt-6" aria-labelledby="h-kantong">
           <SectionHeader id="h-kantong" title="Kantong lain" note={rp(k.total - k.utama)} more={<MoreLink href="/kantong">Semua kantong</MoreLink>} />
-          <ul className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 lg:grid lg:grid-cols-4 lg:overflow-visible">
+          {/* One row on a wide screen: as many columns as kantong (up to five), the rest behind "Semua kantong" */}
+          <ul className={cn("no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 lg:grid lg:overflow-visible lg:[&>li:nth-child(n+6)]:hidden", STRIP_COLS[Math.min(k.pots.length, 5)])}>
             {k.pots.map((pt) => {
               const g = goals.get(pt.id);
               return (
@@ -105,63 +108,60 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </section>
       )}
 
-      {/* The month in two figures, against last month; the full report is one tap away */}
-      <section className="mt-6" aria-labelledby="h-month">
-        <SectionHeader id="h-month" title="Bulan ini" more={<MoreLink href={`/laporan${qs}`}>Laporan</MoreLink>} />
-        <KpiStrip
-          items={[
-            { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
-            {
-              label: "Pengeluaran",
-              value: rp(s.expense),
-              delta: change(p.expense, s.expense, false),
-              sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} pakai tabungan` : `${prevName} ${rp(p.expense)}`,
-            },
-          ]}
-        />
-      </section>
+      {/* The month in two figures, against last month */}
+      <KpiStrip
+        className="mt-6"
+        items={[
+          { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
+          {
+            label: "Pengeluaran",
+            value: rp(s.expense),
+            delta: change(p.expense, s.expense, false),
+            sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} pakai tabungan` : `${prevName} ${rp(p.expense)}`,
+          },
+        ]}
+      />
 
       <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
-        {/* The jatah, with what needs attention */}
-        <section aria-labelledby="h-jatah">
-          <SectionHeader id="h-jatah" title="Jatah belanja" note={over.length ? `${over.length} kategori lewat` : undefined} more={<MoreLink href={`/jatah${qs}`}>Lihat</MoreLink>} />
-          <Card className="px-5 py-5">
-            {d.budgetTotal > 0 ? (
-              <>
-                <p className={cn("num text-[22px] leading-8 font-bold tracking-[-0.02em]", left < 0 && "text-neg")}>{left >= 0 ? "Sisa" : "Lewat"} {rp(Math.abs(left))}</p>
-                <PlanBar className="mt-3" spent={split.planned} plan={d.budgetTotal} marker={isCurrent ? monthProgress(month, t, days) : undefined} hue />
-                <p className="num mt-2.5 text-[13px] text-muted">
-                  {rp(split.planned)} dari {rp(d.budgetTotal)}
-                  {left > 0 && isCurrent ? ` · sekitar ${rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari` : ""}
-                </p>
-                {over.length > 0 && (
-                  <ul className="mt-4 border-t border-rule">
-                    {over.slice(0, 3).map((l) => (
-                      <li key={l.categoryId} className="flex min-h-11 items-center justify-between gap-4 border-b border-rule py-2 last:border-b-0">
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm">{catName.get(l.categoryId)}</span>
-                          <span className="num block text-xs text-muted">{rp(l.actual)} dari {rp(l.budget)}</span>
-                        </span>
-                        <span className="num shrink-0 text-sm text-neg">lebih {rp(l.actual - l.budget)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted">
-                Jatah bulan ini belum diatur. <Link href={`/jatah${qs}`} className="text-ink underline underline-offset-4">Atur jatah</Link>
+        {/* The jatah, with what needs attention: one card, so its label sits inside */}
+        <Card className="px-5 py-5" aria-labelledby="h-jatah">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="h-jatah" className="text-sm text-muted">Jatah belanja {monthName(month)}</h2>
+            <MoreLink href={`/jatah${qs}`}>Lihat</MoreLink>
+          </div>
+          {d.budgetTotal > 0 ? (
+            <>
+              <p className={cn("num mt-1 text-[22px] leading-8 font-bold tracking-[-0.02em]", left < 0 && "text-neg")}>{left >= 0 ? "Sisa" : "Lewat"} {rp(Math.abs(left))}</p>
+              <PlanBar className="mt-3" spent={split.planned} plan={d.budgetTotal} marker={isCurrent ? monthProgress(month, t, days) : undefined} hue />
+              <p className="num mt-2.5 text-[13px] text-muted">
+                {rp(split.planned)} dari {rp(d.budgetTotal)}
+                {left > 0 && isCurrent ? ` · sekitar ${rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari` : ""}
               </p>
-            )}
-          </Card>
-        </section>
+              {over.length > 0 && (
+                <ul className="mt-4 border-t border-rule">
+                  {over.slice(0, 3).map((l) => (
+                    <li key={l.categoryId} className="flex min-h-11 items-center justify-between gap-4 border-b border-rule py-2 last:border-b-0">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm">{catName.get(l.categoryId)}</span>
+                        <span className="num block text-xs text-muted">{rp(l.actual)} dari {rp(l.budget)}</span>
+                      </span>
+                      <span className="num shrink-0 text-sm text-neg">lebih {rp(l.actual - l.budget)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted">
+              Jatah bulan ini belum diatur. <Link href={`/jatah${qs}`} className="text-ink underline underline-offset-4">Atur jatah</Link>
+            </p>
+          )}
+        </Card>
 
-        <section aria-labelledby="h-recent">
-          <SectionHeader id="h-recent" title="Transaksi terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
-          <Card className="overflow-hidden">
-            {recent.length ? <TxList rows={recent} grouped={false} /> : <p className="px-5 py-6 text-sm text-muted">Belum ada transaksi.</p>}
-          </Card>
-        </section>
+        <Card className="overflow-hidden" aria-labelledby="h-recent">
+          <PanelHeader id="h-recent" title="Transaksi terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
+          {recent.length ? <TxList rows={recent} grouped={false} /> : <p className="px-5 py-6 text-sm text-muted">Belum ada transaksi.</p>}
+        </Card>
       </div>
     </div>
   );
