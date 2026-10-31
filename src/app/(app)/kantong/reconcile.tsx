@@ -84,7 +84,7 @@ function ReconcileForm({ potId, name, balance, onDone }: { potId: number; name: 
         <div className="mt-4">
           <Label htmlFor={`note-${potId}`}>Catatan</Label>
           <Input id={`note-${potId}`} name="note" placeholder="Selisih bank" maxLength={120} />
-          <p className="mt-1.5 text-xs text-muted">Selisihnya disimpan sebagai penyesuaian, bukan pemasukan atau pengeluaran.</p>
+          <p className="mt-1.5 text-xs text-muted">Selisih dicatat sebagai penyesuaian, bukan transaksi.</p>
         </div>
       )}
 

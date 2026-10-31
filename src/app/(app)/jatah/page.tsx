@@ -70,9 +70,9 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
           </p>
           <PlanBar className="mt-4" spent={split.planned} plan={d.budgetTotal} marker={isCurrent ? progress : undefined} hue />
           <p className="num mt-2.5 text-[13px] leading-5 text-muted">
-            Terpakai {rp(split.planned)} dari {rp(d.budgetTotal)}.
-            {left > 0 && isCurrent ? <> Aman dipakai <span className="text-ink-2">{rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari</span> sampai akhir bulan.</> : ""}
-            {overIncome > 0 && <span className="block text-warn">Jatah dan target menabung melebihi pemasukan {monthName(addMonths(month, -1))} sebesar {rp(overIncome)}.</span>}
+            Terpakai {rp(split.planned)} dari {rp(d.budgetTotal)}
+            {left > 0 && isCurrent ? <> · <span className="text-ink-2">{rp(Math.floor(left / Math.max(daysLeft, 1)))}/hari</span> lagi</> : ""}
+            {overIncome > 0 && <span className="block text-warn">Melebihi pemasukan {monthName(addMonths(month, -1))} {rp(overIncome)}</span>}
           </p>
           {(d.savingPlan !== null || d.saved > 0 || d.summary.savingsOut > 0) && (
             <div className="mt-4 border-t border-rule pt-3.5 text-sm">
@@ -82,8 +82,10 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
               </div>
               {/* The net figure only makes sense with what went in and what came back out */}
               <p className="num mt-1 text-[13px] leading-5 text-muted">
-                {d.summary.savingsOut > 0 ? <>Masuk {rp(d.saved)}, tabungan terambil {rp(d.summary.savingsOut)}. </> : null}
-                {d.savingPlan !== null && d.savingPlan > 0 && (d.savedNet >= d.savingPlan ? <span className="text-pos">Target {rp(d.savingPlan)} tercapai.</span> : <>Target {rp(d.savingPlan)}, kurang {rp(d.savingPlan - d.savedNet)}.</>)}
+                {d.summary.savingsOut > 0 && <span className="block">Masuk {rp(d.saved)} · Terambil {rp(d.summary.savingsOut)}</span>}
+                {d.savingPlan !== null && d.savingPlan > 0 && (
+                  <span className="block">Target {rp(d.savingPlan)}{d.savedNet >= d.savingPlan && <span className="text-pos"> · tercapai</span>}</span>
+                )}
               </p>
             </div>
           )}
@@ -139,8 +141,7 @@ export default async function JatahPage({ searchParams }: PageProps<"/jatah">) {
               </summary>
               <div className="border-t border-rule">
                 <p className="px-4 pt-3 text-[13px] leading-5 text-muted sm:px-5">
-                  Kategori tanpa jatah, tidak masuk hitungan sisa.
-                  {d.summary.savingsOut > 0 && <> Tabungan terambil bulan ini <span className="num text-ink-2">{rp(d.summary.savingsOut)}</span>.</>}
+                  Tidak masuk hitungan sisa jatah.
                 </p>
                 <ul>{split.unplannedLines.map((l) => <UnplannedRow key={l.categoryId} line={l} name={cats.get(l.categoryId)!.name} group={cats.get(l.categoryId)!.group} month={month} editing={false} />)}</ul>
               </div>

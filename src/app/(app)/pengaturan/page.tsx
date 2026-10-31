@@ -31,14 +31,14 @@ export default async function SettingsPage() {
         <Section
           id="kategori"
           title="Kategori"
-          description="Tipe pengeluaran digunakan dalam ringkasan (Wajib, Kebutuhan, Keinginan, Lainnya). Kategori yang disembunyikan tetap tersimpan dalam riwayat. Menabung tidak memerlukan kategori: pindahkan uang ke kantong tabungan."
+          description="Tipe (Wajib, Kebutuhan, Keinginan, Lainnya) dipakai di laporan. Kategori yang disembunyikan tetap ada di riwayat. Untuk menabung, pakai Pindah ke kantong tabungan."
         >
           <CategoryManager categories={cats} />
         </Section>
         <Section
           id="pos"
           title="Kantong & target"
-          description="Kantong tabungan yang memiliki target diselesaikan sesuai urutan. Kantong belanja dipakai untuk membayar langsung, misalnya jatah makan. Saldo dihitung dari saldo acuan (per awal tanggal acuan), ditambah uang masuk dan dikurangi uang keluar sejak tanggal tersebut."
+          description="Kantong tabungan bisa diberi target dan diisi sesuai urutan. Kantong belanja untuk bayar langsung, misalnya makan. Saldo dihitung dari saldo acuan, ditambah uang masuk dan dikurangi uang keluar sejak tanggal acuan."
           aside={<p className="num mt-3 text-sm">Total di kantong lain <span className="font-bold">{rp(savings.total - savings.utama)}</span></p>}
         >
           <PotManager pots={allPots.map((p) => ({ ...p, balance: bal.get(p.id) ?? p.openingBalance }))} />
@@ -46,19 +46,19 @@ export default async function SettingsPage() {
         <Section
           id="import"
           title="Ekspor & impor"
-          description="Simpan backup secara berkala. File backup dapat diimpor kembali untuk memulihkan seluruh data. Impor juga menerima spreadsheet MoneyFlows lama (File → Download → Microsoft Excel di Google Sheets)."
+          description="Unduh backup secara berkala, lalu impor lagi untuk memulihkan data. Impor juga menerima spreadsheet MoneyFlows lama."
         >
           <ExportBackup txCount={txCount} />
           <div className="my-4 border-t border-rule" />
           <ImportForm hasData={txCount > 0} />
         </Section>
-        <Section id="tampilan" title="Tampilan" description="Mode terang digunakan secara bawaan. Pilihan disimpan di perangkat ini.">
+        <Section id="tampilan" title="Tampilan" description="Pilihan disimpan di perangkat ini.">
           <ThemeToggle className="max-w-xs" />
         </Section>
         <Section
           id="lanjutan"
           title="Lanjutan"
-          description="Diatur sekali saat mulai menggunakan aplikasi dan umumnya tidak perlu diubah."
+          description="Diatur sekali di awal, jarang perlu diubah."
         >
           <details className="group">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm [&::-webkit-details-marker]:hidden">
@@ -71,7 +71,7 @@ export default async function SettingsPage() {
               <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" strokeWidth={1.75} />
             </summary>
             <p className="mt-3 mb-4 text-[13px] leading-5 text-muted">
-              Sisa Kantong Utama setiap bulan otomatis menjadi saldo awal bulan berikutnya, dimulai dari bulan ini. Pengaturan ini membuat saldo Kantong Utama di Beranda berkesinambungan antarbulan.
+              Sisa Kantong Utama tiap bulan jadi saldo awal bulan berikutnya, mulai dari bulan ini.
             </p>
             <SettingsForm carryStartMonth={cfg.carryStartMonth} carryStartBalance={cfg.carryStartBalance} />
           </details>
@@ -79,7 +79,7 @@ export default async function SettingsPage() {
         <Section
           id="akun"
           title="Akun"
-          description="Hanya satu akun yang dapat masuk. Sesi berlaku 30 hari per perangkat. Lupa password dapat diatur ulang melalui email dari halaman login."
+          description="Hanya satu akun. Sesi berakhir setelah 7 hari tidak dibuka. Lupa password bisa diatur ulang dari halaman login."
         >
           <AccountManager
             info={{

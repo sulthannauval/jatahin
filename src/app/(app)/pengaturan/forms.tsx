@@ -206,7 +206,7 @@ export function PotManager({ pots }: { pots: (Pot & { balance: number })[] }) {
                 <div><Label htmlFor="pot-ob">Saldo</Label><MoneyInput id="pot-ob" name="openingBalance" defaultValue={editing.openingBalance} /></div>
                 <div><Label htmlFor="pot-od">Per tanggal</Label><Input id="pot-od" name="openingDate" type="date" defaultValue={editing.openingDate ?? ""} /></div>
               </div>
-              <p className="mt-2 text-xs text-muted">Isi dengan saldo pada awal tanggal ini, sebelum transaksi hari tersebut. Transaksi sejak tanggal ini akan ikut dihitung.</p>
+              <p className="mt-2 text-xs text-muted">Saldo di awal tanggal ini. Transaksi sejak tanggal ini ikut dihitung.</p>
             </fieldset>
             <div><Label htmlFor="pot-note">Catatan</Label><Input id="pot-note" name="note" defaultValue={editing.note} maxLength={300} /></div>
             <ErrorText state={state} />
@@ -357,7 +357,7 @@ export function AccountManager({ info }: { info: AccountInfo }) {
         <form action={emailAction} className="space-y-4">
           <div><Label htmlFor="acc-email">Email baru</Label><Input id="acc-email" name="email" type="email" autoComplete="email" required autoFocus maxLength={200} /></div>
           <div><Label htmlFor="acc-email-pw">Password saat ini</Label><Input id="acc-email-pw" name="password" type="password" autoComplete="current-password" required /></div>
-          <p className="text-xs leading-5 text-muted">Tautan konfirmasi dikirim ke email baru dan berlaku 60 menit. Email login berubah setelah tautan tersebut dibuka.</p>
+          <p className="text-xs leading-5 text-muted">Tautan konfirmasi dikirim ke email baru, berlaku 60 menit. Email login berubah setelah tautan dibuka.</p>
           <ErrorText state={emailState} />
           <Button type="submit" className="w-full" disabled={emailPending}>{emailPending && <Loader2 className="size-4 animate-spin" />} Kirim tautan konfirmasi</Button>
         </form>
@@ -376,7 +376,7 @@ export function AccountManager({ info }: { info: AccountInfo }) {
       </Dialog>
 
       <Dialog open={open === "everywhere"} onClose={close} title="Keluar dari semua perangkat?">
-        <p className="text-sm leading-6 text-ink-2">Semua sesi diakhiri, termasuk di perangkat ini. Anda perlu masuk kembali di setiap perangkat.</p>
+        <p className="text-sm leading-6 text-ink-2">Semua perangkat keluar, termasuk yang ini. Masuk lagi di tiap perangkat.</p>
         <div className="mt-5 flex gap-2">
           <Button variant="secondary" className="flex-1" onClick={close}>Batal</Button>
           <Button className="flex-1" disabled={outPending} onClick={() => startOut(() => signOutEverywhere())}>
