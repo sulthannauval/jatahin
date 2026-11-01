@@ -120,7 +120,7 @@ export type BillReminders = Awaited<ReturnType<typeof getBillReminders>>;
 
 /**
  * The payday a salary recorded today belongs to (the nearest one, so an early or late salary still counts) and its
- * tagihan pas gajian not paid yet. For "Sekalian bayar tagihan gajian?" in the record sheet. Null when there is
+ * tagihan pas gajian not paid yet. For "Sekalian bayar tagihan?" in the record sheet. Null when there is
  * nothing to offer or the salary category isn't set.
  */
 export async function getPaydayPlan(db: DB, today: string): Promise<NonNullable<BillReminders["payday"]> | null> {
