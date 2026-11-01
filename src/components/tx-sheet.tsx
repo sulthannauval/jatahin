@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Calendar, Loader2, Repeat, X } from "lucide-react";
+import { Calendar, Check, Loader2, Repeat, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createCategory, deleteTransaction, deleteTransfer, saveTransaction, saveTransfer, type ActionResult } from "@/app/actions";
 import { reopenBill } from "@/app/bill-actions";
@@ -14,10 +14,13 @@ import { cn } from "@/lib/cn";
 import { Button } from "./ui";
 import { useTx, type TxDraft } from "./tx-context";
 import { Picker, type PickerSection } from "./picker";
+import { PaydaySheet, type Payday } from "./payday-sheet";
 
-export function TxSheet({ options }: { options: FormOptions }) {
+export function TxSheet({ options, payday }: { options: FormOptions; payday: Payday | null }) {
   const { draft, closeTx, openTx } = useTx();
   const ref = useRef<HTMLDialogElement>(null);
+  // "Sekalian bayar tagihan gajian?": the payday sheet opens once the salary is saved.
+  const [paydayOpen, setPaydayOpen] = useState(false);
 
   useEffect(() => {
     const d = ref.current;
@@ -50,13 +53,16 @@ export function TxSheet({ options }: { options: FormOptions }) {
   }, [openTx]);
 
   return (
-    <dialog ref={ref} className="sheet" onClose={closeTx} onClick={(e) => e.target === ref.current && closeTx()} aria-labelledby="tx-title">
-      {draft && <TxForm key={draft.nonce} draft={draft} options={options} />}
-    </dialog>
+    <>
+      <dialog ref={ref} className="sheet" onClose={closeTx} onClick={(e) => e.target === ref.current && closeTx()} aria-labelledby="tx-title">
+        {draft && <TxForm key={draft.nonce} draft={draft} options={options} payday={payday} onPayday={() => setPaydayOpen(true)} />}
+      </dialog>
+      {payday && <PaydaySheet open={paydayOpen} onClose={() => setPaydayOpen(false)} data={payday} salaryDone />}
+    </>
   );
 }
 
-function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
+function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options: FormOptions; payday: Payday | null; onPayday: () => void }) {
   const { closeTx, toast } = useTx();
   const router = useRouter();
   const [kind, setKind] = useState(draft.kind);
@@ -73,6 +79,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
   const again = useRef(false);
+  const [payNow, setPayNow] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
   const isEdit = !!draft.id;
 
@@ -116,7 +123,11 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
         label: "Bukan ini",
         run: () => void reopenBill(undo.billId, undo.month).then((r) => toast(r.ok ? r.message ?? "" : r.error, r.ok ? "ok" : "error")),
       });
-      if (again.current) {
+      // Only when the offer was still showing and ticked as it was saved.
+      if (fd.get("payday") === "1" && !again.current) {
+        closeTx();
+        onPayday();
+      } else if (again.current) {
         setAmount("");
         setDescription("");
         amountRef.current?.focus();
@@ -159,12 +170,15 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
 
   const t = today();
   const yesterday = addDays(t, -1);
+  // Recording the salary: offer the tagihan pas gajian right after.
+  const offer = !isEdit && kind === "income" && !!payday && categoryId === payday.salary.categoryId;
   const size = amount.length > 11 ? "text-[34px]" : amount.length > 8 ? "text-[40px]" : "text-[48px]";
 
   return (
     <form action={action} className="flex max-h-[inherit] flex-col">
       <input type="hidden" name="id" value={draft.id ?? ""} />
       <input type="hidden" name="kind" value={kind} />
+      <input type="hidden" name="payday" value={offer && payNow ? "1" : ""} />
       {isMove ? (
         <>
           <input type="hidden" name="fromPotId" value={fromPotId || ""} />
@@ -367,6 +381,27 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
           </button>
         )}
 
+        {/* Recording the salary: the tagihan pas gajian can follow right after */}
+        {offer && (
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={payNow}
+            onClick={() => setPayNow(!payNow)}
+            className={cn("mt-3 flex w-full cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors", payNow ? "border-hue bg-brand-soft" : "border-line hover:bg-field")}
+          >
+            <span aria-hidden className={cn("grid size-6 shrink-0 place-items-center rounded-lg border-[1.5px]", payNow ? "border-ink bg-ink text-surface" : "border-control bg-surface")}>
+              {payNow && <Check className="size-3.5" strokeWidth={3} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">Sekalian bayar tagihan gajian?</span>
+              <span className="num block text-xs text-muted">
+                {payday.bills.length} tagihan, {rp(payday.bills.reduce((t, b) => t + (b.lastAmount ?? 0), 0))}. Dicek dulu sebelum disimpan.
+              </span>
+            </span>
+          </button>
+        )}
+
         {state && !state.ok && (
           <p role="alert" className="mt-4 rounded-xl bg-[var(--pill-neg-bg)] px-3.5 py-2.5 text-sm text-[var(--pill-neg-ink)]">{state.error}</p>
         )}
@@ -398,7 +433,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
         )}
         <Button type="submit" size="lg" className="flex-1" disabled={pending} onClick={() => (again.current = false)}>
           {pending && <Loader2 className="size-4 animate-spin" />}
-          Simpan
+          {offer && payNow ? "Simpan & cek tagihan" : "Simpan"}
         </Button>
       </div>
     </form>

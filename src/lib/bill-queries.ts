@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { DB } from "./db";
 import { billPayments, bills, categories, pots, savingPlans, settings, transactions, transfers } from "./db/schema";
 import { addDays, addMonths, monthOf, monthStart } from "./dates";
-import { billDay, dueDate, dueLabel, matchesQuery, openPeriods, rankForBill, type BillInfo, type MatchCandidate, type OpenPeriod } from "./bills";
+import { billDay, dueDate, dueLabel, matchesQuery, openPeriods, periodFor, rankForBill, type BillInfo, type MatchCandidate, type OpenPeriod } from "./bills";
 
 /** A settled month: paid by a transaction, or skipped (tx null). */
 export type Settled = { month: string; tx: { id: number; date: string; amount: number } | null };
@@ -117,6 +117,23 @@ export async function getBillReminders(db: DB, today: string) {
 }
 
 export type BillReminders = Awaited<ReturnType<typeof getBillReminders>>;
+
+/**
+ * The payday a salary recorded today belongs to (the nearest one, so an early or late salary still counts) and its
+ * tagihan pas gajian not paid yet. For "Sekalian bayar tagihan gajian?" in the record sheet. Null when there is
+ * nothing to offer or the salary category isn't set.
+ */
+export async function getPaydayPlan(db: DB, today: string): Promise<NonNullable<BillReminders["payday"]> | null> {
+  const data = await loadBills(db);
+  if (!data.paydayDay || !data.salaryCategoryId) return null;
+  const month = periodFor(today, data.paydayDay);
+  const due = dueDate(month, data.paydayDay);
+  const bills = data.bills
+    .filter((b) => b.schedule === "payday" && due >= b.createdOn && !b.settled.some((x) => x.month === month))
+    .map((b) => ({ id: b.id, name: b.name, note: b.note, categoryName: b.categoryName, lastAmount: b.lastAmount }));
+  if (!bills.length) return null;
+  return { month, due, label: dueLabel(due, today), bills, ...(await paydayExtras(db, month, due, data.salaryCategoryId)) };
+}
 
 /** The salary (if not recorded yet this payday) and the month's saving plan, for the payday sheet. */
 async function paydayExtras(db: DB, month: string, due: string, salaryCategoryId: number | null) {

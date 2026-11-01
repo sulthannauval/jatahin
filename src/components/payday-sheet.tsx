@@ -11,7 +11,7 @@ import { Dialog } from "./form-kit";
 import { useTx } from "./tx-context";
 import { Button } from "./ui";
 
-type Payday = NonNullable<BillReminders["payday"]>;
+export type Payday = NonNullable<BillReminders["payday"]>;
 
 const digits = (v: string) => Number(v.replace(/\D/g, "")) || 0;
 const fmt = (n: number | null) => (n ? groupDigits(String(n)) : "");
@@ -22,17 +22,18 @@ const amountInput =
  * Payday in one sheet: the salary, every tagihan "pas gajian" with last month's amount ready to type over, and the
  * month's saving plan as a move to a saving kantong. One save records them all.
  */
-export function PaydaySheet({ open, onClose, data }: { open: boolean; onClose: () => void; data: Payday }) {
+export function PaydaySheet({ open, onClose, data, salaryDone }: { open: boolean; onClose: () => void; data: Payday; salaryDone?: boolean }) {
   return (
     <Dialog open={open} onClose={onClose} title={`Gajian ${monthName(data.month)}`}>
-      {open && <PaydayForm data={data} onDone={onClose} />}
+      {open && <PaydayForm data={data} onDone={onClose} salaryDone={salaryDone} />}
     </Dialog>
   );
 }
 
-function PaydayForm({ data, onDone }: { data: Payday; onDone: () => void }) {
+function PaydayForm({ data, onDone, salaryDone }: { data: Payday; onDone: () => void; salaryDone?: boolean }) {
   const { toast } = useTx();
-  const s = data.salary;
+  // Just recorded from the record sheet: the server's copy may not know yet, so it is never offered twice.
+  const s = salaryDone ? { ...data.salary, recordedOn: data.salary.recordedOn ?? today() } : data.salary;
   const [salaryOn, setSalaryOn] = useState(!s.recordedOn);
   const [salaryCat, setSalaryCat] = useState<number | "">(s.categoryId ?? "");
   const [salary, setSalary] = useState(fmt(s.amount));
@@ -188,7 +189,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Tick({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
+export function Tick({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
   return (
     <button
       type="button"
