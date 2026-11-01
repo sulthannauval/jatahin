@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, Loader2, Search, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Loader2, Search, X } from "lucide-react";
 import { inputClass } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
@@ -22,6 +23,10 @@ export function TxFilters({ categories }: { categories: Cat[] }) {
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
   const [pending, start] = useTransition();
+  const [menu, setMenu] = useState(false);
+  // On wider screens the menu sits under the chip; on a phone it spans the width.
+  const [menuLeft, setMenuLeft] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const type = params.get("t") ?? "";
   const cat = params.get("c") ?? "";
 
@@ -46,7 +51,7 @@ export function TxFilters({ categories }: { categories: Cat[] }) {
   const shown = categories.filter((c) => (type === "masuk" ? c.kind === "income" : type === "keluar" ? c.kind === "expense" : true));
 
   return (
-    <div>
+    <div ref={wrapRef} className="relative" style={{ "--menu-left": `${menuLeft}px` } as React.CSSProperties}>
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari catatan, misalnya “kopi”" className={cn(inputClass, "rounded-2xl border-line bg-surface pr-9 pl-10")} aria-label="Cari" />
@@ -65,23 +70,87 @@ export function TxFilters({ categories }: { categories: Cat[] }) {
           </button>
         ))}
         {type !== "pindah" && (
-          <label className={cn(chip(!!cat), "relative pr-8")}>
+          <button
+            type="button"
+            onClick={(e) => {
+              const chipBox = e.currentTarget.getBoundingClientRect();
+              const box = wrapRef.current!.getBoundingClientRect();
+              setMenuLeft(Math.max(0, Math.min(chipBox.left - box.left, box.width - 288)));
+              setMenu((v) => !v);
+            }}
+            aria-expanded={menu} aria-controls="cat-menu" className={cn(chip(!!cat), "pr-2.5")}>
             <span className="max-w-40 truncate">{cat ? categories.find((c) => String(c.id) === cat)?.name ?? "Kategori" : "Kategori"}</span>
-            <ChevronDown className="pointer-events-none absolute right-2.5 size-3.5" strokeWidth={2} />
-            <select value={cat} onChange={(e) => push({ c: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Filter kategori">
-              <option value="">Semua kategori</option>
-              {(["expense", "income"] as const).map((k) => {
-                const list = shown.filter((c) => c.kind === k);
-                return list.length ? (
-                  <optgroup key={k} label={k === "expense" ? "Pengeluaran" : "Pemasukan"}>
-                    {list.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </optgroup>
-                ) : null;
-              })}
-            </select>
-          </label>
+            <ChevronDown className={cn("size-3.5 transition-transform", menu && "rotate-180")} strokeWidth={2} />
+          </button>
         )}
       </div>
+      {menu && type !== "pindah" && (
+        <CategoryMenu
+          categories={shown}
+          value={cat}
+          onPick={(v) => { setMenu(false); push({ c: v }); }}
+          onClose={() => setMenu(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The category filter as a list (not a native select), so it can end with "Atur kategori": the categories are
+ * managed from where they are filtered.
+ */
+function CategoryMenu({ categories, value, onPick, onClose }: { categories: Cat[]; value: string; onPick: (v: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    // The chip toggles it itself; any other tap outside closes it.
+    const away = (e: PointerEvent) => {
+      const t = e.target as Element;
+      if (!ref.current?.contains(t) && !t.closest?.('[aria-controls="cat-menu"]')) onClose();
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    // Next tick, so the tap that opened it doesn't close it.
+    const t = setTimeout(() => document.addEventListener("pointerdown", away));
+    document.addEventListener("keydown", esc);
+    return () => { clearTimeout(t); document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
+  }, [onClose]);
+  const needle = q.trim().toLowerCase();
+  const found = needle ? categories.filter((c) => c.name.toLowerCase().includes(needle)) : categories;
+  const row = (on: boolean) => cn("flex h-10 w-full cursor-pointer items-center justify-between rounded-lg px-3 text-left text-sm transition-colors hover:bg-field", on ? "text-ink" : "text-ink-2");
+
+  return (
+    <div ref={ref} id="cat-menu" className="absolute top-full left-0 z-30 mt-2 w-full overflow-hidden rounded-2xl bg-elevated shadow-[0_12px_32px_rgb(0_0_0/0.14),0_0_0_1px_var(--border)] sm:left-[var(--menu-left)] sm:w-72">
+      <label className="flex h-11 items-center gap-2 border-b border-rule px-3">
+        <Search className="size-4 text-muted" strokeWidth={1.75} />
+        <span className="sr-only">Cari kategori</span>
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari kategori…" className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted" />
+      </label>
+      <div className="max-h-72 overflow-y-auto p-1">
+        {!needle && (
+          <button type="button" onClick={() => onPick("")} className={row(!value)}>
+            Semua kategori {!value && <Check className="size-4" strokeWidth={2} />}
+          </button>
+        )}
+        {(["expense", "income"] as const).map((k) => {
+          const list = found.filter((c) => c.kind === k);
+          return list.length ? (
+            <div key={k} role="group" aria-label={k === "expense" ? "Pengeluaran" : "Pemasukan"}>
+              <p className="px-3 pt-2 pb-1 text-[11px] text-muted">{k === "expense" ? "Pengeluaran" : "Pemasukan"}</p>
+              {list.map((c) => (
+                <button key={c.id} type="button" onClick={() => onPick(String(c.id))} className={row(value === String(c.id))}>
+                  <span className="truncate">{c.name}</span>
+                  {value === String(c.id) && <Check className="size-4 shrink-0" strokeWidth={2} />}
+                </button>
+              ))}
+            </div>
+          ) : null;
+        })}
+        {found.length === 0 && <p className="px-3 py-3 text-sm text-muted">Tidak ditemukan.</p>}
+      </div>
+      <Link href="/transaksi/kategori" className="flex h-11 items-center justify-between border-t border-rule px-4 text-sm text-ink-2 transition-colors hover:bg-field hover:text-ink">
+        Atur kategori <ChevronRight className="size-4" strokeWidth={1.75} />
+      </Link>
     </div>
   );
 }

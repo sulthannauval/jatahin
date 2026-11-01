@@ -288,6 +288,8 @@ function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options:
                 invalid={!!state && !state.ok && !categoryId}
                 onCreate={(q) => setNewCat({ name: q, group: kind === "income" ? "Rutin" : "Kebutuhan" })}
                 createLabel="Kategori baru"
+                onManage={() => { closeTx(); router.push("/transaksi/kategori"); }}
+                manageLabel="Atur kategori"
               />
               {newCat && (
                 <NewCategory
@@ -433,7 +435,7 @@ function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options:
         )}
         <Button type="submit" size="lg" className="flex-1" disabled={pending} onClick={() => (again.current = false)}>
           {pending && <Loader2 className="size-4 animate-spin" />}
-          {offer && payNow ? "Simpan & cek tagihan" : "Simpan"}
+          {offer && payNow ? "Simpan & lanjut" : "Simpan"}
         </Button>
       </div>
     </form>
