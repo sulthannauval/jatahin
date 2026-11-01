@@ -71,6 +71,7 @@ export async function getBillsPage(db: DB, today: string) {
     const open = openOf(b, data.paydayDay, today)[0];
     const day = billDay(b, data.paydayDay);
     const now = b.settled.find((s) => s.month === month);
+    const settled = new Set(b.settled.map((s) => s.month));
     let status: BillStatus;
     if (open) {
       const l = dueLabel(open.due, today);
@@ -80,10 +81,15 @@ export async function getBillsPage(db: DB, today: string) {
     else if (now) status = { kind: "skipped", month };
     else if (day === null) status = { kind: "unscheduled" };
     else {
-      const due = dueDate(month, day);
-      status = { kind: "next", due: due >= today ? due : dueDate(addMonths(month, 1), day) };
+      // The next due date, past any month already paid early.
+      let m = dueDate(month, day) >= today ? month : addMonths(month, 1);
+      while (settled.has(m)) m = addMonths(m, 1);
+      status = { kind: "next", due: dueDate(m, day) };
     }
-    return { ...b, status };
+    // "Bayar sekarang" pays the first month not settled yet, from the one asked for now (or this month).
+    let payMonth = open?.month ?? (status.kind === "next" ? status.due.slice(0, 7) : month);
+    while (settled.has(payMonth)) payMonth = addMonths(payMonth, 1);
+    return { ...b, status, payMonth };
   });
   const paid = rows.filter((r) => r.settled.some((s) => s.month === month)).length;
   const total = rows.reduce((s, r) => s + (r.lastAmount ?? 0), 0);

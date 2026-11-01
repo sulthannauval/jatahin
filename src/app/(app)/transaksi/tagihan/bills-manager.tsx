@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Settings2 } from "lucide-react";
+import { PaidPicker } from "@/components/bill-reminders";
 import { deleteBill, findSimilarPayments, reopenBill, saveBill, savePayday, skipBill, type SimilarPayment } from "@/app/bill-actions";
 import { Dialog, ErrorText, useFormAction } from "@/components/form-kit";
 import { useTx } from "@/components/tx-context";
@@ -141,8 +142,9 @@ function StatusBadge({ status: s }: { status: BillStatus }) {
 function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
   bill: Row | null; from: FromTx | null; expenseCats: Opt[]; pots: Opt[]; month: string; onDone: () => void;
 }) {
-  const { toast } = useTx();
+  const { toast, openTx } = useTx();
   const [state, action, pending] = useFormAction(saveBill, onDone);
+  const [picking, setPicking] = useState(false);
   const [name, setName] = useState(bill?.name ?? from?.description ?? "");
   const [categoryId, setCategoryId] = useState<number | "">(bill?.categoryId ?? from?.categoryId ?? "");
   const [potId, setPotId] = useState<number | "">(bill?.potId ?? from?.potId ?? "");
@@ -181,9 +183,40 @@ function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
   // The month a skip applies to: the one being asked for, else the next one due.
   const skipMonth = s?.kind === "open" ? s.month : s?.kind === "next" ? s.due.slice(0, 7) : null;
   const settledNow = s?.kind === "paid" || s?.kind === "skipped";
+  const pay = bill && { billId: bill.id, month: bill.payMonth, name: bill.name, categoryId: bill.categoryId, potId: bill.potId, lastAmount: bill.lastAmount };
+
+  // "Sudah dibayar" swaps the form for the list of transactions to pick from.
+  if (pay && picking) {
+    return (
+      <div>
+        <p className="-mt-2 mb-1 text-sm font-medium">{bill.name} {monthName(pay.month)} sudah dibayar?</p>
+        <PaidPicker bill={pay} onDone={onDone} />
+        <Button variant="ghost" className="mt-1 w-full" onClick={() => setPicking(false)}>Kembali</Button>
+      </div>
+    );
+  }
 
   return (
     <form action={action} className="space-y-4">
+      {/* Paying before it is asked for: this month's (or the next unpaid) tagihan, from here */}
+      {pay && (
+        <div className="rounded-2xl border border-line p-3">
+          <p className="num px-1 text-[13px] text-muted">
+            Tagihan {monthName(pay.month)}
+            {bill.lastAmount !== null ? ` · ${bill.settled.some((x) => x.tx) ? "terakhir" : "nominal awal"} ${rp(bill.lastAmount)}` : ""}
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => { onDone(); openTx({ kind: "expense", categoryId: pay.categoryId, potId: pay.potId, amount: pay.lastAmount ?? undefined, description: pay.name, billId: pay.billId, billMonth: pay.month }); }}
+            >
+              Bayar sekarang
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setPicking(true)}>Sudah dibayar</Button>
+          </div>
+        </div>
+      )}
       <input type="hidden" name="id" value={bill?.id ?? ""} />
       <input type="hidden" name="fromTxId" value={source?.id ?? ""} />
       <input type="hidden" name="schedule" value={schedule} />

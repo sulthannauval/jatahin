@@ -140,7 +140,10 @@ function CloseBtn({ onClick, label }: { onClick: () => void; label: string }) {
 }
 
 /** "Sudah dibayar": pick the transaction that paid it, likeliest first. */
-function PaidPicker({ bill, onDone }: { bill: Dated; onDone: () => void }) {
+/** The tagihan month being paid, as the picker and "Catat sekarang" need it. */
+export type PickBill = { billId: number; month: string; name: string; categoryId: number; potId: number | null; lastAmount: number | null };
+
+export function PaidPicker({ bill, onDone }: { bill: PickBill; onDone: () => void }) {
   const { billId, month } = bill;
   const { toast, openTx } = useTx();
   const [q, setQ] = useState("");
