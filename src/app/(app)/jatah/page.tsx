@@ -183,7 +183,7 @@ function EditAll({ d, cats, month, split }: { d: Awaited<ReturnType<typeof getDa
     <>
       <section className="mt-3" aria-label="Jatah per kategori">
         <Card className="overflow-hidden">
-          <PanelHeader title="Jatah per kategori" note="tersimpan otomatis" more={<MoreLink href="/jatah/kategori">Kategori</MoreLink>} />
+          <PanelHeader title="Jatah per kategori" note="tersimpan otomatis" more={<MoreLink href="/transaksi/kategori">Kategori</MoreLink>} />
           {groups.map((g, i) => {
             const gl = lines.filter((l) => cats.get(l.categoryId)!.group === g);
             const spent = gl.reduce((a, l) => a + l.actual, 0);

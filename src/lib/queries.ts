@@ -32,6 +32,15 @@ export async function getCategories(db: DB, includeArchived = false) {
   return rows;
 }
 
+/** How many transactions use each category, all time. */
+export async function categoryUsage(db: DB) {
+  const rows = await db
+    .select({ categoryId: transactions.categoryId, n: sql<number>`count(*)::int` })
+    .from(transactions)
+    .groupBy(transactions.categoryId);
+  return new Map(rows.map((r) => [r.categoryId, r.n]));
+}
+
 export async function getPots(db: DB, includeArchived = false) {
   return db
     .select()
