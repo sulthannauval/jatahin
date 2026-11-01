@@ -117,3 +117,34 @@ export function rankForBill<T extends { categoryId: number; amount: number; desc
   const score = (t: T) => (t.categoryId === bill.categoryId ? 4 : 0) + (sharesName(t.description, bill.name) ? 2 : 0) + (amountClose(t.amount, last) ? 1 : 0);
   return [...rows].sort((a, b) => score(b) - score(a) || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
+
+// ── What the balance already owes ─────────────────────────────
+
+export type ReserveBill = BillInfo & { lastAmount: number | null; settledMonths: Set<string> };
+
+/**
+ * Tagihan the money in Kantong Utama is already meant for, until the next salary: dated ones due before it (late
+ * ones included), and tagihan pas gajian of the current payday once its salary is recorded (before that
+ * they are paid from the coming salary, so they would only make the balance look short). Without a payday set, the
+ * horizon is the end of this month.
+ */
+export function reservedBills(bills: ReserveBill[], paydayDay: number | null, today: string, salaryRecorded: boolean) {
+  const m = monthOf(today);
+  // Until the salary that has to cover it: this payday's while it isn't in yet, the next one once it is.
+  const period = paydayDay !== null ? periodFor(today, paydayDay) : null;
+  const until = period !== null ? dueDate(salaryRecorded ? addMonths(period, 1) : period, paydayDay!) : addDays(dueDate(addMonths(m, 1), 1), -1);
+  const items: { billId: number; month: string; due: string; amount: number }[] = [];
+  for (const b of bills) {
+    if (b.schedule === "date") {
+      for (const month of [addMonths(m, -1), m, addMonths(m, 1)]) {
+        const due = dueDate(month, b.dueDay!);
+        if (due < until && due >= b.createdOn && !b.settledMonths.has(month)) items.push({ billId: b.id, month, due, amount: b.lastAmount ?? 0 });
+      }
+    } else if (paydayDay !== null && salaryRecorded) {
+      const month = periodFor(today, paydayDay);
+      const due = dueDate(month, paydayDay);
+      if (due >= b.createdOn && !b.settledMonths.has(month)) items.push({ billId: b.id, month, due, amount: b.lastAmount ?? 0 });
+    }
+  }
+  return { until, items, total: items.reduce((s, i) => s + i.amount, 0) };
+}

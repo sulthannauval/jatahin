@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
@@ -8,8 +9,8 @@ type Line = { label: string; amount: number; sign: "+" | "−" | null };
  * The ledger beside it shows how the figure was reached, so it can be checked against the bank.
  */
 export function BalanceCard({
-  label, balance, lines, note,
-}: { label: string; balance: number; lines: Line[]; note?: string }) {
+  label, balance, lines, note, reserve,
+}: { label: string; balance: number; lines: Line[]; note?: string; reserve?: ReactNode }) {
   return (
     <section
       aria-label={label}
@@ -20,7 +21,8 @@ export function BalanceCard({
         <p className={cn("num mt-1.5 text-[36px] leading-[1.1] font-bold tracking-[-0.03em] whitespace-nowrap", balance < 0 && "text-neg")}>
           {balance < 0 ? "−" : ""}{rp(Math.abs(balance))}
         </p>
-        {note && <p className="mt-2 text-[13px] leading-5 text-muted">{note}</p>}
+        {/* What tagihan are already waiting for takes the note's place */}
+        {reserve ?? (note && <p className="mt-2 text-[13px] leading-5 text-muted">{note}</p>)}
       </div>
 
       {/* How the balance was reached: a rise in green with a plus, a fall in ink with a minus */}
