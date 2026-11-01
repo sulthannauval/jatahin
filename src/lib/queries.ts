@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DB } from "./db";
-import { budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "./db/schema";
-import { addMonths, monthStart, today as todayFn } from "./dates";
+import { billPayments, budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "./db/schema";
+import { comparePeriods, cumulative } from "./report";
+import { addMonths, daysInMonth, monthStart, today as todayFn } from "./dates";
 import { frequentEntries } from "./quick";
 import {
   budgetLines,
@@ -317,4 +318,43 @@ export type FormOptions = Awaited<ReturnType<typeof getFormOptions>>;
 export async function countTransactions(db: DB) {
   const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(transactions);
   return r.n;
+}
+
+/**
+ * What Laporan adds to the dashboard figures: last month cut to the same days (while this month runs), spending day by
+ * day for both months, and how much of this month's spending paid tagihan.
+ */
+export async function getReport(db: DB, month: string, todayDate = todayFn()) {
+  const p = comparePeriods(month, todayDate);
+  const prevMonth = addMonths(month, -1);
+  const [cats, prevSums, daily, [bill]] = await Promise.all([
+    getCategories(db, true),
+    db
+      .select({ categoryId: transactions.categoryId, total: sql<string>`sum(${transactions.amount})` })
+      .from(transactions)
+      .where(and(gte(transactions.date, p.prev.from), lte(transactions.date, p.prev.to)))
+      .groupBy(transactions.categoryId),
+    db
+      .select({ date: transactions.date, total: sql<string>`sum(${transactions.amount})` })
+      .from(transactions)
+      .innerJoin(categories, eq(categories.id, transactions.categoryId))
+      .where(and(eq(categories.kind, "expense"), gte(transactions.date, monthStart(prevMonth)), lte(transactions.date, p.cur.to)))
+      .groupBy(transactions.date),
+    db
+      .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+      .from(billPayments)
+      .innerJoin(transactions, eq(transactions.id, billPayments.transactionId))
+      .where(and(gte(transactions.date, p.cur.from), lte(transactions.date, p.cur.to))),
+  ]);
+  const infos = cats.map(toCatInfo);
+  const prevCut = summarizeMonth(prevSums.map((r) => ({ month: "cut", categoryId: r.categoryId, total: Number(r.total) })), infos, "cut");
+  const byDate = new Map(daily.map((r) => [r.date, Number(r.total)]));
+  return {
+    ...p,
+    /** Last month over the days compared with (the whole of it once this month is over). */
+    prevCut,
+    curDaily: cumulative(byDate, month, p.day),
+    prevDaily: cumulative(byDate, prevMonth, daysInMonth(prevMonth)),
+    tagihan: Number(bill?.total ?? 0),
+  };
 }
