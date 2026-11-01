@@ -19,7 +19,7 @@ import { PaydaySheet, type Payday } from "./payday-sheet";
 export function TxSheet({ options, payday }: { options: FormOptions; payday: Payday | null }) {
   const { draft, closeTx, openTx } = useTx();
   const ref = useRef<HTMLDialogElement>(null);
-  // "Sekalian bayar tagihan gajian?": the payday sheet opens once the salary is saved.
+  // "Sekalian bayar tagihan?": the payday sheet opens once the salary is saved.
   const [paydayOpen, setPaydayOpen] = useState(false);
 
   useEffect(() => {
@@ -394,7 +394,7 @@ function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options:
               {payNow && <Check className="size-3.5" strokeWidth={3} />}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">Sekalian bayar tagihan gajian?</span>
+              <span className="block text-sm font-medium">Sekalian bayar tagihan?</span>
               <span className="num block text-xs text-muted">
                 {payday.bills.length} tagihan, {rp(payday.bills.reduce((t, b) => t + (b.lastAmount ?? 0), 0))}. Dicek dulu sebelum disimpan.
               </span>
