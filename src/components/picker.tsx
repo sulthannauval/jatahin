@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Dot } from "./ui";
 
@@ -23,6 +23,8 @@ export function Picker({
   invalid,
   onCreate,
   createLabel = "Baru",
+  onManage,
+  manageLabel = "Atur",
 }: {
   label: string;
   placeholder: string;
@@ -33,6 +35,9 @@ export function Picker({
   invalid?: boolean;
   onCreate?: (query: string) => void;
   createLabel?: string;
+  /** A way to the page where the options themselves are managed, beside `onCreate`. */
+  onManage?: () => void;
+  manageLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -161,15 +166,28 @@ export function Picker({
               </div>
             ))}
           </div>
-          {onCreate && (
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onCreate(q.trim()); }}
-              className="flex h-11 w-full cursor-pointer items-center gap-2.5 border-t border-rule px-4 text-left text-sm text-ink-2 transition-colors hover:bg-field hover:text-ink"
-            >
-              <Plus className="size-4 shrink-0" strokeWidth={2} />
-              <span className="truncate">{q.trim() && !flat.some((o) => o.name.toLowerCase() === q.trim().toLowerCase()) ? `Buat “${q.trim()}”` : createLabel}</span>
-            </button>
+          {(onCreate || onManage) && (
+            <div className="flex border-t border-rule">
+              {onCreate && (
+                <button
+                  type="button"
+                  onClick={() => { setOpen(false); onCreate(q.trim()); }}
+                  className="flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-4 text-left text-sm text-ink-2 transition-colors hover:bg-field hover:text-ink"
+                >
+                  <Plus className="size-4 shrink-0" strokeWidth={2} />
+                  <span className="truncate">{q.trim() && !flat.some((o) => o.name.toLowerCase() === q.trim().toLowerCase()) ? `Buat “${q.trim()}”` : createLabel}</span>
+                </button>
+              )}
+              {onManage && (
+                <button
+                  type="button"
+                  onClick={() => { setOpen(false); onManage(); }}
+                  className="flex h-11 shrink-0 cursor-pointer items-center gap-1 border-l border-rule px-4 text-sm text-ink-2 transition-colors hover:bg-field hover:text-ink"
+                >
+                  {manageLabel} <ChevronRight className="size-3.5" strokeWidth={1.75} />
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}

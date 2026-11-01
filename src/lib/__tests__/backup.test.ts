@@ -6,7 +6,7 @@ import readExcelFile from "read-excel-file/node";
 import writeXlsxFile from "write-excel-file/node";
 import * as schema from "../db/schema";
 import type { DB } from "../db";
-import { budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "../db/schema";
+import { billPayments, bills, budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "../db/schema";
 import { isBackup, parseBackup, toSheets, type InSheet } from "../backup/format";
 import { readBackup, restoreBackup } from "../backup/db";
 
@@ -44,7 +44,15 @@ async function seed(db: DB) {
     { month: "2026-10-01", categoryId: 3, amount: 1200000 },
     { month: "2026-11-01", categoryId: 3, amount: 0 },
   ]);
-  await db.insert(settings).values({ id: 1, carryStartMonth: "2026-01", carryStartBalance: 421062 });
+  await db.insert(bills).values([
+    { id: 5, name: "Listrik PLN", categoryId: 3, schedule: "payday", amount: 519280, sortOrder: 1, createdAt: new Date("2026-10-28T01:00:00Z") },
+    { id: 8, name: "BPJS", categoryId: 9, potId: 6, schedule: "date", dueDay: 1, note: "ke Mandiri", sortOrder: 2, createdAt: new Date("2026-10-28T02:00:00Z") },
+  ]);
+  await db.insert(billPayments).values([
+    { billId: 5, month: "2026-10-01", transactionId: 11, createdAt: new Date("2026-10-28T01:00:00Z") },
+    { billId: 8, month: "2026-11-01", transactionId: null, createdAt: new Date("2026-10-29T00:00:00Z") },
+  ]);
+  await db.insert(settings).values({ id: 1, carryStartMonth: "2026-01", carryStartBalance: 421062, paydayDay: 10, salaryCategoryId: 7 });
 }
 
 /** Writes the backup to real .xlsx bytes and reads them back, like a download followed by an upload. */
@@ -62,7 +70,7 @@ describe("backup", () => {
 
     const target = await freshDb();
     const res = await restoreBackup(target, parseBackup(sheets), false);
-    expect(res).toEqual({ categories: 3, pots: 3, transactions: 3, transfers: 2, adjustments: 1, budgets: 2 });
+    expect(res).toEqual({ categories: 3, pots: 3, transactions: 3, transfers: 2, adjustments: 1, budgets: 2, bills: 2 });
     expect(await readBackup(target)).toEqual(await readBackup(source));
   });
 
@@ -77,6 +85,8 @@ describe("backup", () => {
     expect(tx.id).toBe(16);
     expect(cat.id).toBe(10);
     expect(move.id).toBe(5);
+    const [bill] = await target.insert(bills).values({ name: "Wifi", categoryId: 3 }).returning();
+    expect(bill.id).toBe(9);
   });
 
   it("refuses to overwrite existing data unless asked, and replaces it when asked", async () => {
@@ -89,6 +99,16 @@ describe("backup", () => {
     await target.insert(transactions).values({ date: "2026-10-09", categoryId: 3, amount: 999 });
     await restoreBackup(target, data, true);
     expect(await readBackup(target)).toEqual(await readBackup(source));
+  });
+
+  it("reads a backup made before tagihan existed", async () => {
+    const source = await freshDb();
+    await seed(source);
+    const sheets = (await throughXlsx(source)).filter((s) => s.sheet !== "Tagihan" && s.sheet !== "Pembayaran Tagihan");
+    const d = parseBackup(sheets);
+    expect(d.bills).toEqual([]);
+    expect(d.billPayments).toEqual([]);
+    expect(d.settings).toMatchObject({ paydayDay: 10, salaryCategoryId: 7 });
   });
 
   it("round-trips an empty database", async () => {

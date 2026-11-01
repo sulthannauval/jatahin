@@ -21,6 +21,12 @@ export type BackupTransfer = { id: number; date: string; fromPotId: number | nul
 export type BackupAdjustment = { id: number; potId: number; date: string; amount: number; note: string; createdAt: Date };
 export type BackupBudget = { month: string; categoryId: number; amount: number };
 export type BackupPlan = { month: string; amount: number };
+export type BackupBill = {
+  id: number; name: string; categoryId: number; potId: number | null; schedule: "payday" | "date"; dueDay: number | null;
+  amount: number | null; note: string; sortOrder: number; createdAt: Date;
+};
+/** transactionId null: skipped that month. */
+export type BackupBillPayment = { billId: number; month: string; transactionId: number | null; createdAt: Date };
 export type BackupData = {
   categories: BackupCategory[];
   pots: BackupPot[];
@@ -29,7 +35,9 @@ export type BackupData = {
   adjustments: BackupAdjustment[];
   budgets: BackupBudget[];
   savingPlans: BackupPlan[];
-  settings: { carryStartMonth: string | null; carryStartBalance: number };
+  bills: BackupBill[];
+  billPayments: BackupBillPayment[];
+  settings: { carryStartMonth: string | null; carryStartBalance: number; paydayDay: number | null; salaryCategoryId: number | null };
 };
 
 
@@ -42,6 +50,8 @@ const SHEET = {
   adjustments: "Penyesuaian Kantong",
   budgets: "Budget",
   savingPlans: "Rencana Menabung",
+  bills: "Tagihan",
+  billPayments: "Pembayaran Tagihan",
   settings: "Pengaturan",
 } as const;
 /** Version 1 named kantong "pos" and had no transfers: savings were income and spending with a role. */
@@ -50,7 +60,10 @@ const V1 = { pots: "Pos", adjustments: "Penyesuaian Pos", potId: "ID pos" } as c
 const KIND: Record<Kind, string> = { expense: "Pengeluaran", income: "Pemasukan" };
 const POT_KIND: Record<PotKind, string> = { saving: "Tabungan", spending: "Belanja" };
 const ROLE: Record<NonNullable<LegacyRole>, string> = { saving_deposit: "Setoran tabungan", saving_withdraw: "Penarikan tabungan" };
-const SETTING = { carryStartMonth: "Mulai saldo bawaan (YYYY-MM)", carryStartBalance: "Saldo awal di bulan itu" };
+const SETTING = {
+  carryStartMonth: "Mulai saldo bawaan (YYYY-MM)", carryStartBalance: "Saldo awal di bulan itu", paydayDay: "Tanggal gajian", salaryCategoryId: "ID kategori gaji",
+};
+const SCHEDULE = { payday: "Pas gajian", date: "Tanggal tertentu" } as const;
 
 const money = (v: number | null): Cell => (v === null ? null : { value: v, type: Number, format: "#,##0" });
 // Dates stay as YYYY-MM-DD text so no spreadsheet app can shift them across time zones.
@@ -64,6 +77,7 @@ export function toSheets(d: BackupData, exportedAt: Date): OutSheet<Buffer>[] {
   const catName = new Map(d.categories.map((c) => [c.id, c.name]));
   const catKind = new Map(d.categories.map((c) => [c.id, c.kind]));
   const potName = new Map(d.pots.map((p) => [p.id, p.name]));
+  const billName = new Map(d.bills.map((b) => [b.id, b.name]));
   const w = (...widths: number[]) => widths.map((width) => ({ width }));
 
   return [
@@ -81,6 +95,7 @@ export function toSheets(d: BackupData, exportedAt: Date): OutSheet<Buffer>[] {
         ["Penyesuaian kantong", d.adjustments.length],
         ["Budget", d.budgets.length],
         ["Rencana menabung", d.savingPlans.length],
+        ["Tagihan", d.bills.length],
         [],
         ["Catatan", "Impor file ini di Pengaturan → Ekspor & impor untuk memulihkan data. Kolom ID menghubungkan antar sheet, jangan diubah."],
       ],
@@ -154,12 +169,35 @@ export function toSheets(d: BackupData, exportedAt: Date): OutSheet<Buffer>[] {
       data: [head(["Bulan", "Nominal"]), ...d.savingPlans.map((b) => [text(b.month), money(b.amount)])],
     },
     {
+      sheet: SHEET.bills,
+      columns: w(6, 24, 12, 24, 10, 20, 16, 10, 16, 30, 8, 26),
+      stickyRowsCount: 1,
+      data: [
+        head(["ID", "Nama", "ID kategori", "Kategori", "ID kantong", "Kantong", "Jadwal", "Tanggal", "Nominal awal", "Catatan", "Urutan", "Dibuat"]),
+        ...d.bills.map((b) => [
+          b.id, b.name, b.categoryId, catName.get(b.categoryId) ?? null, b.potId, b.potId === null ? UTAMA : potName.get(b.potId) ?? null,
+          SCHEDULE[b.schedule], b.dueDay, money(b.amount), text(b.note), b.sortOrder, text(b.createdAt.toISOString()),
+        ]),
+      ],
+    },
+    {
+      sheet: SHEET.billPayments,
+      columns: w(10, 24, 10, 14, 26),
+      stickyRowsCount: 1,
+      data: [
+        head(["ID tagihan", "Tagihan", "Bulan", "ID transaksi", "Dicatat"]),
+        ...d.billPayments.map((p) => [p.billId, billName.get(p.billId) ?? null, text(p.month), p.transactionId, text(p.createdAt.toISOString())]),
+      ],
+    },
+    {
       sheet: SHEET.settings,
       columns: w(32, 18),
       data: [
         head(["Pengaturan", "Nilai"]),
         [SETTING.carryStartMonth, text(d.settings.carryStartMonth)],
         [SETTING.carryStartBalance, money(d.settings.carryStartBalance)],
+        [SETTING.paydayDay, d.settings.paydayDay],
+        [SETTING.salaryCategoryId, d.settings.salaryCategoryId],
       ],
     },
   ];
@@ -342,6 +380,40 @@ export function parseBackup(sheets: InSheet[]): BackupData {
     unique(savingPlans, (b) => b.month, "Rencana menabung bulan");
   }
 
+  // Tagihan came after version 2 was first written: older backups simply have none.
+  const txIds = new Set(transactions.map((t) => t.id));
+  const has = (name: string) => sheets.some((x) => x.sheet === name);
+  const bills: BackupBill[] = has(SHEET.bills)
+    ? table(sheets, SHEET.bills, ["ID", "Nama", "ID kategori", "ID kantong", "Jadwal", "Tanggal", "Nominal awal", "Catatan", "Urutan", "Dibuat"]).map((r) => {
+        const categoryId = r.int("ID kategori");
+        if (!expenseIds.has(categoryId)) r.bad("ID kategori", `kategori pengeluaran ${categoryId} tidak ada di sheet Kategori`);
+        const schedule = r.pick("Jadwal", SCHEDULE)!;
+        const dueDay = r.intOrNull("Tanggal");
+        if (schedule === "date" && (dueDay === null || dueDay < 1 || dueDay > 31)) r.bad("Tanggal", "harus 1 sampai 31");
+        const amount = r.intOrNull("Nominal awal");
+        if (amount !== null && amount <= 0) r.bad("Nominal awal", "harus lebih dari 0");
+        return {
+          id: r.int("ID"), name: r.str("Nama") || r.bad("Nama", "tidak boleh kosong"), categoryId, potId: knownPot(r, "ID kantong", r.intOrNull("ID kantong")),
+          schedule, dueDay: schedule === "date" ? dueDay : null, amount, note: r.str("Catatan"), sortOrder: r.int("Urutan"), createdAt: r.time("Dibuat"),
+        };
+      })
+    : [];
+  unique(bills, (b) => b.id, "ID tagihan");
+  const billIds = new Set(bills.map((b) => b.id));
+  const billPayments: BackupBillPayment[] = has(SHEET.billPayments)
+    ? table(sheets, SHEET.billPayments, ["ID tagihan", "Bulan", "ID transaksi", "Dicatat"]).map((r) => {
+        const billId = r.int("ID tagihan");
+        if (!billIds.has(billId)) r.bad("ID tagihan", `tagihan ${billId} tidak ada di sheet ${SHEET.bills}`);
+        const month = r.str("Bulan");
+        if (!isMonthKey(month)) r.bad("Bulan", "harus berformat YYYY-MM");
+        const transactionId = r.intOrNull("ID transaksi");
+        if (transactionId !== null && !txIds.has(transactionId)) r.bad("ID transaksi", `transaksi ${transactionId} tidak ada di sheet ${SHEET.transactions}`);
+        return { billId, month, transactionId, createdAt: r.time("Dicatat") };
+      })
+    : [];
+  unique(billPayments, (p) => `${p.billId} ${p.month}`, "Pembayaran tagihan");
+  unique(billPayments.filter((p) => p.transactionId !== null), (p) => p.transactionId!, "ID transaksi pembayaran tagihan");
+
   const set = sheets.find((s) => s.sheet === SHEET.settings);
   if (!set) throw new BackupError(`Sheet "${SHEET.settings}" tidak ditemukan di file backup.`);
   const setting = (label: string) => cellStr(set.data.find((r) => cellStr(r[0]) === label)?.[1]);
@@ -349,10 +421,15 @@ export function parseBackup(sheets: InSheet[]): BackupData {
   if (carryStartMonth !== null && !isMonthKey(carryStartMonth)) throw new BackupError(`Sheet ${SHEET.settings}: ${SETTING.carryStartMonth} tidak valid.`);
   const carryStartBalance = Number(setting(SETTING.carryStartBalance) || 0);
   if (!Number.isSafeInteger(carryStartBalance)) throw new BackupError(`Sheet ${SHEET.settings}: ${SETTING.carryStartBalance} harus berupa bilangan bulat.`);
+  const paydayDay = setting(SETTING.paydayDay) ? Number(setting(SETTING.paydayDay)) : null;
+  if (paydayDay !== null && !(Number.isInteger(paydayDay) && paydayDay >= 1 && paydayDay <= 31)) throw new BackupError(`Sheet ${SHEET.settings}: ${SETTING.paydayDay} harus 1 sampai 31.`);
+  const salaryRaw = setting(SETTING.salaryCategoryId) ? Number(setting(SETTING.salaryCategoryId)) : null;
+  // A salary category that isn't in the backup is dropped rather than failing the whole restore.
+  const salaryCategoryId = salaryRaw !== null && catIds.has(salaryRaw) ? salaryRaw : null;
 
   return {
     categories: cats.map((c) => ({ id: c.id, name: c.name, kind: c.kind, group: c.group, sortOrder: c.sortOrder, archived: c.archived })),
-    pots, transactions, transfers, adjustments, budgets, savingPlans,
-    settings: { carryStartMonth, carryStartBalance },
+    pots, transactions, transfers, adjustments, budgets, savingPlans, bills, billPayments,
+    settings: { carryStartMonth, carryStartBalance, paydayDay, salaryCategoryId },
   };
 }

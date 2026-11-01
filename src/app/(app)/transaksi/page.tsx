@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LayoutList, Table2 } from "lucide-react";
+import { ChevronRight, LayoutList, Table2 } from "lucide-react";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
 import { getActivity, getCategories, type ActivityRow } from "@/lib/queries";
-import { currentMonth, isMonthKey, monthLabel } from "@/lib/dates";
+import { currentMonth, isMonthKey, monthLabel, monthName, today } from "@/lib/dates";
+import { getBillsPage, type BillsPage } from "@/lib/bill-queries";
 import { rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, EmptyState, MoreLink } from "@/components/ui";
+import { Badge, Card, EmptyState } from "@/components/ui";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { TxList } from "@/components/tx-list";
 import { TxTable } from "@/components/tx-table";
@@ -34,7 +35,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
   const c = t !== "pindah" && typeof sp.c === "string" && /^\d+$/.test(sp.c) ? Number(sp.c) : undefined;
   const view = sp.v === "tabel" ? "tabel" : "daftar";
   const db = await getDb();
-  const [all, cats] = await Promise.all([getActivity(db, { month, q, categoryId: c }), getCategories(db, true)]);
+  const [all, cats, bills] = await Promise.all([getActivity(db, { month, q, categoryId: c }), getCategories(db, true), getBillsPage(db, today())]);
   const rows = t ? all.filter(byType[t]) : all;
   // The totals stay those of the search and category, whichever kind of entry is shown.
   const income = all.reduce((s, r) => s + (r.type === "tx" && r.kind === "income" ? r.amount : 0), 0);
@@ -51,10 +52,9 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
           <MonthSwitcher month={month} path="/transaksi" params={{ ...keep, v: view === "tabel" ? "tabel" : undefined }} />
         </div>
       </div>
-      <div className="mt-0.5 mb-4 flex items-center justify-between gap-3">
-        <p className="min-w-0 text-sm text-muted">{count} catatan di {monthLabel(month)}{q ? ` untuk “${q}”` : ""}</p>
-        <MoreLink href="/transaksi/kategori">Kategori</MoreLink>
-      </div>
+      <p className="mt-0.5 mb-4 text-sm text-muted">{count} catatan di {monthLabel(month)}{q ? ` untuk “${q}”` : ""}</p>
+
+      <BillsCard bills={bills} />
 
       <Card className="grid grid-cols-2">
         <Total label="Pemasukan" value={(income ? "+" : "") + rp(income)} className={income ? "text-pos" : "text-muted"} />
@@ -101,5 +101,28 @@ function ViewToggle({ view, sp }: { view: string; sp: Record<string, string | un
       <Link href={href()} className={item(view === "daftar")} aria-label="Tampilan daftar" title="Daftar" scroll={false}><LayoutList className="size-4" strokeWidth={1.5} /></Link>
       <Link href={href("tabel")} className={item(view === "tabel")} aria-label="Tampilan tabel" title="Tabel" scroll={false}><Table2 className="size-4" strokeWidth={1.5} /></Link>
     </div>
+  );
+}
+
+/** Tagihan as a feature with its state this month, not a link: what is still owed and whether any is late. */
+function BillsCard({ bills: b }: { bills: BillsPage }) {
+  const open = b.rows.filter((r) => r.status.kind === "open");
+  const late = open.filter((r) => r.status.kind === "open" && r.status.tone === "late").length;
+  const dueToday = open.some((r) => r.status.kind === "open" && r.status.tone === "today");
+  const unpaid = b.rows.length - b.paid;
+  const line = !b.rows.length
+    ? "Catat yang dibayar tiap bulan, lalu diingatkan"
+    : unpaid > 0
+      ? `${unpaid} belum dibayar · ${rp(b.left)}`
+      : `Semua beres bulan ${monthName(currentMonth())}`;
+  return (
+    <Link href="/transaksi/tagihan" className="mb-3 flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-5 py-3 transition-colors hover:bg-raised/50">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-medium">Tagihan</span>
+        <span className="num block truncate text-[13px] text-muted">{line}</span>
+      </span>
+      {late > 0 ? <Badge tone="neg">Telat {late}</Badge> : dueToday ? <Badge tone="warn">Hari ini</Badge> : null}
+      <ChevronRight className="size-4 shrink-0 text-muted" strokeWidth={1.75} />
+    </Link>
   );
 }

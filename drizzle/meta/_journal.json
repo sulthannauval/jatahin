@@ -50,6 +50,13 @@
       "when": 1793420657670,
       "tag": "0006_drop_category_role",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793533858455,
+      "tag": "0007_tagihan",
+      "breakpoints": true
     }
   ]
 }

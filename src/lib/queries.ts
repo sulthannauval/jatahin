@@ -51,7 +51,7 @@ export async function getPots(db: DB, includeArchived = false) {
 
 export async function getSettings(db: DB) {
   const [row] = await db.select().from(settings).where(eq(settings.id, 1));
-  return row ?? { id: 1, carryStartMonth: null, carryStartBalance: 0 };
+  return row ?? { id: 1, carryStartMonth: null, carryStartBalance: 0, paydayDay: null, salaryCategoryId: null };
 }
 
 async function monthCatSums(db: DB): Promise<MonthCatSum[]> {

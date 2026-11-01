@@ -18,6 +18,8 @@ import {
 export const categoryKind = pgEnum("category_kind", ["income", "expense"]);
 /** A kantong for saving (may have a target) or for spending from directly (e.g. a monthly food kantong). */
 export const potKind = pgEnum("pot_kind", ["saving", "spending"]);
+/** When a tagihan is paid: on payday (the settings' paydayDay) or on a day of the month of its own. */
+export const billSchedule = pgEnum("bill_schedule", ["payday", "date"]);
 
 const money = (name: string) => bigint(name, { mode: "number" });
 
@@ -143,12 +145,61 @@ export const savingPlans = pgTable(
   (t) => [check("saving_plans_amount_nonneg", sql`${t.amount} >= 0`)],
 );
 
+/**
+ * Tagihan: something paid every month (electricity, BPJS, a subscription). Its amount is only the first month's;
+ * after that the last payment's amount is used.
+ */
+export const bills = pgTable(
+  "bills",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "restrict" }),
+    /** The kantong it is paid from. Null: Kantong Utama. */
+    potId: integer("pot_id").references(() => pots.id, { onDelete: "restrict" }),
+    schedule: billSchedule("schedule").notNull().default("payday"),
+    /** Day of the month for schedule "date" (1-31; short months use their last day). */
+    dueDay: integer("due_day"),
+    amount: money("amount"),
+    note: text("note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("bills_due_day", sql`(${t.schedule} = 'payday' and ${t.dueDay} is null) or (${t.schedule} = 'date' and ${t.dueDay} between 1 and 31)`),
+    check("bills_amount_positive", sql`${t.amount} is null or ${t.amount} > 0`),
+  ],
+);
+
+/**
+ * A tagihan settled for one month (month = first day): paid by a transaction, or skipped (transactionId null).
+ * Deleting the transaction makes the month open again.
+ */
+export const billPayments = pgTable(
+  "bill_payments",
+  {
+    billId: integer("bill_id")
+      .notNull()
+      .references(() => bills.id, { onDelete: "cascade" }),
+    month: date("month").notNull(),
+    transactionId: integer("transaction_id").references(() => transactions.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.billId, t.month] }), uniqueIndex("bill_payments_transaction_idx").on(t.transactionId)],
+);
+
 /** Single-row settings table (id = 1). */
 export const settings = pgTable("settings", {
   id: integer("id").primaryKey().default(1),
   /** Month from which leftover balance carries into the next month. */
   carryStartMonth: text("carry_start_month"), // "YYYY-MM"
   carryStartBalance: money("carry_start_balance").notNull().default(0),
+  /** The day the salary comes in; tagihan "pas gajian" are due then. */
+  paydayDay: integer("payday_day"),
+  /** The income category the salary is recorded in on the payday sheet. */
+  salaryCategoryId: integer("salary_category_id").references(() => categories.id, { onDelete: "set null" }),
 }, (t) => [check("settings_single_row", sql`${t.id} = 1`)]);
 
 export const loginAttempts = pgTable(
@@ -203,3 +254,4 @@ export type Category = typeof categories.$inferSelect;
 export type Pot = typeof pots.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type Transfer = typeof transfers.$inferSelect;
+export type Bill = typeof bills.$inferSelect;
