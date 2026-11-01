@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRightLeft, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
-import { getKantong, getRecentActivity, type KantongData } from "@/lib/queries";
+import { getKantong, getPots, getRecentActivity, type KantongData } from "@/lib/queries";
 import { monthLabel, shortDate } from "@/lib/dates";
 import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
@@ -11,6 +11,7 @@ import type { Goal } from "@/lib/finance";
 import { Card, MoreLink, PanelHeader, Progress, SectionHeader } from "@/components/ui";
 import { AddTxButton, TxList } from "@/components/tx-list";
 import { AdjustmentList } from "./reconcile";
+import { HiddenKantong, NewKantongButton } from "./kantong-form";
 import { Table, Td, Th, TotalRow } from "@/components/table";
 
 export const metadata: Metadata = { title: "Kantong" };
@@ -22,7 +23,8 @@ export const metadata: Metadata = { title: "Kantong" };
 export default async function KantongPage() {
   await requireSession();
   const db = await getDb();
-  const [s, recent] = await Promise.all([getKantong(db), getRecentActivity(db, 5, true)]);
+  const [s, recent, allPots] = await Promise.all([getKantong(db), getRecentActivity(db, 5, true), getPots(db, true)]);
+  const hidden = allPots.filter((p) => p.archived);
   const saving = s.pots.filter((p) => p.kind === "saving");
   const spending = s.pots.filter((p) => p.kind === "spending");
   const goals = new Map(s.goals.map((g, i) => [g.id, { g, n: i + 1, prev: s.goals[i - 1] }]));
@@ -58,7 +60,7 @@ export default async function KantongPage() {
       </div>
 
       <section className="mt-8" aria-labelledby="k-saving">
-        <SectionHeader id="k-saving" title="Tabungan" note={`${saving.length} kantong · ${rp(s.savingTotal)}`} more={<MoreLink href="/pengaturan#pos">Kantong baru</MoreLink>} />
+        <SectionHeader id="k-saving" title="Tabungan" note={`${saving.length} kantong · ${rp(s.savingTotal)}`} more={<NewKantongButton />} />
         <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
           {saving.map((p) => {
             const goal = goals.get(p.id);
@@ -80,7 +82,7 @@ export default async function KantongPage() {
       </section>
 
       <section className="mt-8" aria-labelledby="k-spending">
-        <SectionHeader id="k-spending" title="Belanja" note={spending.length ? `${spending.length} kantong` : undefined} />
+        <SectionHeader id="k-spending" title="Belanja" note={spending.length ? `${spending.length} kantong` : undefined} more={spending.length ? <NewKantongButton kind="spending" /> : undefined} />
         {spending.length ? (
           <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
             {spending.map((p) => {
@@ -93,10 +95,10 @@ export default async function KantongPage() {
             })}
           </ul>
         ) : (
-          <Link href="/pengaturan#pos" className="block rounded-2xl border-[1.5px] border-dashed border-control px-5 py-4 text-[13px] leading-5 text-ink-2 transition-colors hover:bg-raised/50">
+          <NewKantongButton kind="spending" className="block w-full cursor-pointer rounded-2xl border-[1.5px] border-dashed border-control px-5 py-4 text-left text-[13px] leading-5 text-ink-2 transition-colors hover:bg-raised/50">
             <span className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-ink"><Plus className="size-4" strokeWidth={2} /> Buat kantong belanja</span>
             Contoh: Makan, Transport. Isi di awal bulan, bayar dari situ.
-          </Link>
+          </NewKantongButton>
         )}
       </section>
 
@@ -105,6 +107,16 @@ export default async function KantongPage() {
           <PanelHeader id="k-recent" title="Aktivitas terakhir" more={<MoreLink href="/transaksi">Semua</MoreLink>} />
           <TxList rows={recent} grouped={false} />
         </Card>
+      )}
+
+      {hidden.length > 0 && (
+        <details className="group mt-8">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+            <ChevronDown className="size-4 transition-transform group-open:rotate-180" strokeWidth={1.5} />
+            {hidden.length} kantong disembunyikan
+          </summary>
+          <Card className="mt-3 overflow-hidden"><HiddenKantong pots={hidden} /></Card>
+        </details>
       )}
 
       {/* The spreadsheet's table, on request */}

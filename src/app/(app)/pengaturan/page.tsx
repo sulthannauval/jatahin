@@ -7,42 +7,25 @@ import { failuresLastDay } from "@/lib/auth/account";
 import { pendingEmailChange } from "@/lib/auth/tokens";
 import { mailMode } from "@/lib/mail";
 import { getDb } from "@/lib/db";
-import { countTransactions, getCategories, getKantong, getPots, getSettings } from "@/lib/queries";
+import { countTransactions, getSettings } from "@/lib/queries";
 import { dateTimeLabel, monthLabel } from "@/lib/dates";
 import { rp } from "@/lib/money";
 import { PageHeader } from "@/components/ui";
-import { AccountManager, CategoryManager, ExportBackup, ImportForm, PotManager, SettingsForm } from "./forms";
+import { AccountManager, ExportBackup, ImportForm, SettingsForm } from "./forms";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 
 export default async function SettingsPage() {
   const acc = await requireSession();
   const db = await getDb();
-  const [cats, allPots, savings, cfg, txCount, failures, pendingEmail] = await Promise.all([
-    getCategories(db, true), getPots(db, true), getKantong(db), getSettings(db), countTransactions(db), failuresLastDay(db), pendingEmailChange(db),
+  const [cfg, txCount, failures, pendingEmail] = await Promise.all([
+    getSettings(db), countTransactions(db), failuresLastDay(db), pendingEmailChange(db),
   ]);
-  const bal = new Map(savings.pots.map((p) => [p.id, p.balance]));
-  const activeCats = cats.filter((c) => !c.archived);
 
   return (
     <>
-      <PageHeader title="Pengaturan" sub={`${txCount} transaksi tersimpan · ${activeCats.length} kategori aktif · ${allPots.filter((p) => !p.archived).length} kantong`} />
+      <PageHeader title="Pengaturan" sub="Backup, tampilan, dan akun." />
       <div className="divide-y divide-line">
-        <Section
-          id="kategori"
-          title="Kategori"
-          description="Tipe (Wajib, Kebutuhan, Keinginan, Lainnya) dipakai di laporan. Kategori yang disembunyikan tetap ada di riwayat. Untuk menabung, pakai Pindah ke kantong tabungan."
-        >
-          <CategoryManager categories={cats} />
-        </Section>
-        <Section
-          id="pos"
-          title="Kantong & target"
-          description="Kantong tabungan bisa diberi target dan diisi sesuai urutan. Kantong belanja untuk bayar langsung, misalnya makan. Saldo dihitung dari saldo acuan, ditambah uang masuk dan dikurangi uang keluar sejak tanggal acuan."
-          aside={<p className="num mt-3 text-sm">Total di kantong lain <span className="font-bold">{rp(savings.total - savings.utama)}</span></p>}
-        >
-          <PotManager pots={allPots.map((p) => ({ ...p, balance: bal.get(p.id) ?? p.openingBalance }))} />
-        </Section>
         <Section
           id="import"
           title="Ekspor & impor"

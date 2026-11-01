@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { Card, EmptyState, PanelHeader, Progress } from "@/components/ui";
 import { TxList } from "@/components/tx-list";
 import { AdjustmentList, KantongActions } from "../reconcile";
+import { EditKantongButton } from "../kantong-form";
 
 export const metadata: Metadata = { title: "Kantong" };
 
@@ -42,9 +43,15 @@ export default async function KantongDetailPage({ params }: PageProps<"/kantong/
       <Link href="/kantong" className="-ml-1 inline-flex h-9 items-center gap-1 rounded-full pr-3 pl-1 text-sm text-ink-2 transition-colors hover:bg-raised hover:text-ink">
         <ChevronLeft className="size-4" strokeWidth={1.75} /> Kantong
       </Link>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <h1 className="text-[22px] leading-8 font-medium tracking-[-0.01em] md:text-2xl">{pot.name}</h1>
-        {goal && <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-medium text-brand-ink">{goal.status === "done" ? "Tercapai" : `Prioritas ${goalIndex + 1}`}</span>}
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          <h1 className="text-[22px] leading-8 font-medium tracking-[-0.01em] md:text-2xl">{pot.name}</h1>
+          {goal && <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-medium text-brand-ink">{goal.status === "done" ? "Tercapai" : `Prioritas ${goalIndex + 1}`}</span>}
+        </div>
+        <EditKantongButton
+          pot={{ id: pot.id, name: pot.name, kind: pot.kind, note: pot.note, target: pot.target, targetDate: pot.targetDate, priority: pot.priority, openingBalance: pot.openingBalance, openingDate: pot.openingDate }}
+          balance={pot.balance}
+        />
       </div>
       <p className="mt-0.5 mb-5 text-sm text-muted">{kindLine}{pot.note && <> · {pot.note}</>}</p>
 
