@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { DB } from "./db";
 import { billPayments, bills, categories, pots, savingPlans, settings, transactions, transfers } from "./db/schema";
 import { addDays, addMonths, monthOf, monthStart } from "./dates";
-import { billDay, dueDate, dueLabel, matchesQuery, openPeriods, periodFor, rankForBill, type BillInfo, type MatchCandidate, type OpenPeriod } from "./bills";
+import { billDay, dueDate, dueLabel, matchesQuery, openPeriods, periodFor, rankForBill, reservedBills, type BillInfo, type MatchCandidate, type OpenPeriod } from "./bills";
 
 /** A settled month: paid by a transaction, or skipped (tx null). */
 export type Settled = { month: string; tx: { id: number; date: string; amount: number } | null };
@@ -50,6 +50,9 @@ export async function loadBills(db: DB) {
   });
   return { bills: list, paydayDay: cfg?.paydayDay ?? null, salaryCategoryId: cfg?.salaryCategoryId ?? null };
 }
+
+/** A salary dated `date` belongs to the payday of `month`: the payday nearest to it is that month's. */
+const salaryCounts = (date: string, paydayDay: number, month: string) => periodFor(date, paydayDay) === month;
 
 /** Dated tagihan are asked for from the day before; tagihan pas gajian on payday itself. */
 const leadOf = (b: BillInfo) => (b.schedule === "date" ? 1 : 0);
@@ -113,7 +116,7 @@ export async function getBillReminders(db: DB, today: string) {
   if (!month) return { dated, payday: null };
   const due = waiting.find((w) => w.p.month === month)!.p.due;
   const payBills = waiting.filter((w) => w.p.month === month).map(({ b }) => ({ id: b.id, name: b.name, note: b.note, categoryName: b.categoryName, lastAmount: b.lastAmount }));
-  return { dated, payday: { month, due, label: dueLabel(due, today), bills: payBills, ...(await paydayExtras(db, month, due, data.salaryCategoryId)) } };
+  return { dated, payday: { month, due, label: dueLabel(due, today), bills: payBills, ...(await paydayExtras(db, month, due, data.paydayDay!, data.salaryCategoryId)) } };
 }
 
 export type BillReminders = Awaited<ReturnType<typeof getBillReminders>>;
@@ -132,11 +135,11 @@ export async function getPaydayPlan(db: DB, today: string): Promise<NonNullable<
     .filter((b) => b.schedule === "payday" && due >= b.createdOn && !b.settled.some((x) => x.month === month))
     .map((b) => ({ id: b.id, name: b.name, note: b.note, categoryName: b.categoryName, lastAmount: b.lastAmount }));
   if (!bills.length) return null;
-  return { month, due, label: dueLabel(due, today), bills, ...(await paydayExtras(db, month, due, data.salaryCategoryId)) };
+  return { month, due, label: dueLabel(due, today), bills, ...(await paydayExtras(db, month, due, data.paydayDay, data.salaryCategoryId)) };
 }
 
 /** The salary (if not recorded yet this payday) and the month's saving plan, for the payday sheet. */
-async function paydayExtras(db: DB, month: string, due: string, salaryCategoryId: number | null) {
+async function paydayExtras(db: DB, month: string, due: string, paydayDay: number, salaryCategoryId: number | null) {
   const [incomeCats, lastSalary, plan, savingPots] = await Promise.all([
     db.select({ id: categories.id, name: categories.name }).from(categories).where(and(eq(categories.kind, "income"), eq(categories.archived, false))).orderBy(asc(categories.sortOrder)),
     salaryCategoryId
@@ -145,8 +148,8 @@ async function paydayExtras(db: DB, month: string, due: string, salaryCategoryId
     db.select({ amount: savingPlans.amount }).from(savingPlans).where(eq(savingPlans.month, monthStart(month))),
     db.select({ id: pots.id, name: pots.name }).from(pots).where(and(eq(pots.kind, "saving"), eq(pots.archived, false))).orderBy(sql`${pots.priority} asc nulls last`, asc(pots.sortOrder)),
   ]);
-  // Already in this payday: a salary dated from a few days before it.
-  const recorded = lastSalary[0] && lastSalary[0].date >= addDays(due, -7) ? lastSalary[0] : null;
+  // Already in this payday: the last salary belongs to it (an early or late salary counts toward the nearest payday).
+  const recorded = lastSalary[0] && salaryCounts(lastSalary[0].date, paydayDay, month) ? lastSalary[0] : null;
   // What already went into saving kantong this month counts towards the plan.
   const saving = savingPots.length
     ? await db
@@ -205,3 +208,22 @@ export async function paymentChoices(db: DB, billId: number, month: string, quer
   const found = query.trim() ? rows.filter((r) => matchesQuery(`${r.description} ${r.categoryName}`, query)) : rows;
   return rankForBill(found, bill, bill.lastAmount).slice(0, 12);
 }
+
+/**
+ * For the Kantong Utama card: how much of the balance tagihan are already waiting for until the next salary.
+ * Null when there are no tagihan at all.
+ */
+export async function getBalanceReserve(db: DB, today: string) {
+  const data = await loadBills(db);
+  if (!data.bills.length) return null;
+  // The current payday's salary is in once the last salary belongs to it.
+  let salaryRecorded = false;
+  if (data.paydayDay !== null && data.salaryCategoryId !== null) {
+    const [last] = await db.select({ date: transactions.date }).from(transactions).where(eq(transactions.categoryId, data.salaryCategoryId)).orderBy(desc(transactions.date)).limit(1);
+    salaryRecorded = !!last && last.date <= today && salaryCounts(last.date, data.paydayDay, periodFor(today, data.paydayDay));
+  }
+  const r = reservedBills(data.bills.map((b) => ({ ...b, settledMonths: new Set(b.settled.map((s) => s.month)) })), data.paydayDay, today, salaryRecorded);
+  return { until: r.until, count: r.items.length, total: r.total, payday: data.paydayDay !== null, salaryRecorded };
+}
+
+export type BalanceReserve = Awaited<ReturnType<typeof getBalanceReserve>>;

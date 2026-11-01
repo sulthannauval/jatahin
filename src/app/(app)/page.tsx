@@ -2,11 +2,12 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
 import { getDashboard, getRecentActivity } from "@/lib/queries";
-import { getBillReminders } from "@/lib/bill-queries";
-import { currentMonth, daysInMonth, isMonthKey, monthLabel, monthName, addMonths, today } from "@/lib/dates";
+import { getBalanceReserve, getBillReminders, type BalanceReserve } from "@/lib/bill-queries";
+import { currentMonth, daysInMonth, isMonthKey, monthLabel, monthName, addMonths, shortDate, today } from "@/lib/dates";
 import { budgetSplit, monthProgress } from "@/lib/finance";
 import { pct, rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { Check, ChevronRight } from "lucide-react";
 import { Card, MoreLink, PanelHeader, PlanBar, Progress, SectionHeader, buttonClass } from "@/components/ui";
 import { KpiStrip, change } from "@/components/kpi";
 import { BalanceCard } from "@/components/balance";
@@ -26,7 +27,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const { m } = await searchParams;
   const month = isMonthKey(m) ? m : currentMonth();
   const db = await getDb();
-  const [d, recent, bills] = await Promise.all([getDashboard(db, month), getRecentActivity(db, 5), getBillReminders(db, today())]);
+  const [d, recent, bills, reserve] = await Promise.all([getDashboard(db, month), getRecentActivity(db, 5), getBillReminders(db, today()), getBalanceReserve(db, today())]);
   const { summary: s, prev: p, carry, kantong: k } = d;
   const qs = month === currentMonth() ? "" : `?m=${month}`;
 
@@ -82,6 +83,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             : []
         }
         note="Siap dipakai. Uang di kantong lain terpisah."
+        reserve={isCurrent && reserve ? <Reserved balance={balance} r={reserve} /> : undefined}
       />
 
       {/* The other kantong, swiped sideways on a phone */}
@@ -169,5 +171,47 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </Card>
       </div>
     </div>
+  );
+}
+
+/**
+ * Under the balance: how much of it tagihan are already waiting for until the next salary, and what is free to
+ * spend. The bar shows the same split. Once everything is paid, one quiet line says so.
+ */
+function Reserved({ balance, r }: { balance: number; r: NonNullable<BalanceReserve> }) {
+  const day = (d: string) => shortDate(d).replace(/ \d{4}$/, "");
+  const until = !r.payday ? "bulan ini" : r.salaryRecorded ? `sebelum ${day(r.until)}` : "sebelum gajian";
+  const free = balance - r.total;
+  const link = "group mt-3 flex items-center gap-3 border-t border-rule pt-3 text-[13px] leading-5";
+  if (r.count === 0) {
+    return (
+      <Link href="/transaksi/tagihan" className={link}>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-muted">
+          <Check className="size-3.5 shrink-0 text-pos" strokeWidth={2.5} />
+          Tagihan beres {r.payday ? `sampai gajian ${day(r.until)}` : "bulan ini"}
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" strokeWidth={1.75} />
+      </Link>
+    );
+  }
+  const freeShare = balance > 0 ? Math.max(0, Math.min(1, free / balance)) : 0;
+  return (
+    <>
+      <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-raised" role="img" aria-label={`${rp(Math.max(free, 0))} bebas dari ${rp(Math.max(balance, 0))}`}>
+        <span className="h-full bg-hue" style={{ width: `${freeShare * 100}%` }} />
+        <span className="h-full bg-grey-mark" style={{ width: `${(1 - freeShare) * 100}%` }} />
+      </div>
+      <Link href="/transaksi/tagihan" className={link}>
+        <span className="num min-w-0 flex-1">
+          {free >= 0 ? (
+            <span className="block font-semibold text-pos">{rp(free)} bebas dipakai</span>
+          ) : (
+            <span className="block font-semibold text-neg">Kurang {rp(-free)} untuk tagihan</span>
+          )}
+          <span className="block text-muted">{rp(r.total)} untuk {r.count} tagihan {until}</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" strokeWidth={1.75} />
+      </Link>
+    </>
   );
 }

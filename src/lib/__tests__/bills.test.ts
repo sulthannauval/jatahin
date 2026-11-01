@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueDate, dueLabel, matchesQuery, matchPayment, openPeriods, periodFor, rankForBill, sharesName, type BillInfo, type MatchCandidate } from "../bills";
+import { dueDate, dueLabel, matchesQuery, matchPayment, openPeriods, periodFor, rankForBill, reservedBills, sharesName, type BillInfo, type MatchCandidate } from "../bills";
 
 const bpjs: BillInfo = { id: 1, name: "BPJS", categoryId: 10, schedule: "date", dueDay: 1, createdOn: "2026-10-28" };
 const listrik: BillInfo = { id: 2, name: "Listrik PLN", categoryId: 20, schedule: "payday", dueDay: null, createdOn: "2026-10-28" };
@@ -83,5 +83,34 @@ describe("rankForBill", () => {
       { id: 3, categoryId: 10, amount: 100_000, description: "BPJS Kesehatan", date: "2026-11-01" },
     ];
     expect(rankForBill(rows, { categoryId: 10, name: "BPJS" }, 100_000).map((r) => r.id)).toEqual([3, 2, 1]);
+  });
+});
+
+describe("reservedBills", () => {
+  const wifi = { id: 3, name: "Wifi", categoryId: 20, schedule: "date" as const, dueDay: 8, createdOn: "2026-10-20", lastAmount: 257_713, settledMonths: new Set<string>() };
+  const bpjs1 = { ...bpjs, lastAmount: 100_000, settledMonths: new Set<string>() };
+  const listrik1 = { ...listrik, lastAmount: 519_280, settledMonths: new Set<string>() };
+
+  it("counts dated tagihan due before payday, late ones too, but not payday ones before the salary", () => {
+    const r = reservedBills([bpjs1, wifi, listrik1], 10, "2026-11-05", false);
+    expect(r.until).toBe("2026-11-10");
+    expect(r.items.map((i) => `${i.billId}:${i.month}`)).toEqual(["1:2026-11", "3:2026-11"]);
+    expect(r.total).toBe(357_713);
+  });
+  it("after the salary counts payday tagihan and everything due before the next payday", () => {
+    const r = reservedBills([bpjs1, wifi, listrik1], 10, "2026-11-10", true);
+    expect(r.until).toBe("2026-12-10");
+    expect(r.items.map((i) => `${i.billId}:${i.month}`).sort()).toEqual(["1:2026-11", "1:2026-12", "2:2026-11", "3:2026-11", "3:2026-12"]);
+  });
+  it("an early salary covers until the payday after", () => {
+    expect(reservedBills([wifi], 10, "2026-11-02", true).until).toBe("2026-12-10");
+    expect(reservedBills([wifi], 10, "2026-11-02", false).until).toBe("2026-11-10");
+  });
+  it("leaves out what is paid or skipped", () => {
+    const paid = { ...wifi, settledMonths: new Set(["2026-11"]) };
+    expect(reservedBills([paid], 10, "2026-11-05", false).items).toEqual([]);
+  });
+  it("uses the end of the month without a payday", () => {
+    expect(reservedBills([wifi], null, "2026-11-05", false).until).toBe("2026-11-30");
   });
 });
