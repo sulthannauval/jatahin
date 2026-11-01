@@ -8,7 +8,7 @@ import { addMonths, currentMonth, daysInMonth, isMonthKey, monthLabel, monthName
 import { EXPENSE_GROUPS, budgetSplit, monthProgress, type BudgetLine } from "@/lib/finance";
 import { rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, Dot, PanelHeader, PlanBar } from "@/components/ui";
+import { Card, Dot, MoreLink, PanelHeader, PlanBar } from "@/components/ui";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { BudgetInput, CopyBudgetButton } from "./budget-input";
 
@@ -183,7 +183,7 @@ function EditAll({ d, cats, month, split }: { d: Awaited<ReturnType<typeof getDa
     <>
       <section className="mt-3" aria-label="Jatah per kategori">
         <Card className="overflow-hidden">
-          <PanelHeader title="Jatah per kategori" note="tersimpan otomatis" />
+          <PanelHeader title="Jatah per kategori" note="tersimpan otomatis" more={<MoreLink href="/jatah/kategori">Kategori</MoreLink>} />
           {groups.map((g, i) => {
             const gl = lines.filter((l) => cats.get(l.categoryId)!.group === g);
             const spent = gl.reduce((a, l) => a + l.actual, 0);
