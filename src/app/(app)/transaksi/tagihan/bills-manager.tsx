@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Settings2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2, Plus, Settings2 } from "lucide-react";
 import { PaidPicker } from "@/components/bill-reminders";
 import { deleteBill, findSimilarPayments, reopenBill, saveBill, savePayday, skipBill, type SimilarPayment } from "@/app/bill-actions";
 import { Dialog, ErrorText, useFormAction } from "@/components/form-kit";
@@ -198,25 +198,8 @@ function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
 
   return (
     <form action={action} className="space-y-4">
-      {/* Paying before it is asked for: this month's (or the next unpaid) tagihan, from here */}
-      {pay && (
-        <div className="rounded-2xl border border-line p-3">
-          <p className="num px-1 text-[13px] text-muted">
-            Tagihan {monthName(pay.month)}
-            {bill.lastAmount !== null ? ` · ${bill.settled.some((x) => x.tx) ? "terakhir" : "nominal awal"} ${rp(bill.lastAmount)}` : ""}
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => { onDone(); openTx({ kind: "expense", categoryId: pay.categoryId, potId: pay.potId, amount: pay.lastAmount ?? undefined, description: pay.name, billId: pay.billId, billMonth: pay.month }); }}
-            >
-              Bayar sekarang
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={() => setPicking(true)}>Sudah dibayar</Button>
-          </div>
-        </div>
-      )}
+      {/* Where this month stands first; paying ahead is only offered once this month is settled */}
+      {pay && <PayBox bill={bill} pay={pay} month={month} onPay={() => { onDone(); openTx({ kind: "expense", categoryId: pay.categoryId, potId: pay.potId, amount: pay.lastAmount ?? undefined, description: pay.name, billId: pay.billId, billMonth: pay.month }); }} onPicked={() => setPicking(true)} />}
       <input type="hidden" name="id" value={bill?.id ?? ""} />
       <input type="hidden" name="fromTxId" value={source?.id ?? ""} />
       <input type="hidden" name="schedule" value={schedule} />
@@ -285,7 +268,7 @@ function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
         {schedule === "date" && (
           <div className="mt-3 flex items-center gap-3">
             <label htmlFor="bill-day" className="flex-1 text-sm text-ink-2">Tiap tanggal</label>
-            <Input id="bill-day" name="dueDay" type="number" inputMode="numeric" min={1} max={31} required defaultValue={bill?.dueDay ?? ""} className="w-24 text-center" />
+            <Input id="bill-day" name="dueDay" type="number" inputMode="numeric" min={1} max={31} required defaultValue={bill?.dueDay ?? ""} className="max-w-24 text-center" />
           </div>
         )}
       </fieldset>
@@ -344,13 +327,68 @@ function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
   );
 }
 
+/**
+ * This month's tagihan and how to pay it. When this month is already paid or skipped, that comes first in plain
+ * words, and next month is a small question under it, so a later month is never read as this one being unpaid.
+ */
+function PayBox({ bill, pay, month, onPay, onPicked }: { bill: Row; pay: { month: string }; month: string; onPay: () => void; onPicked: () => void }) {
+  const [ahead, setAhead] = useState(false);
+  const now = bill.settled.find((x) => x.month === month);
+  const last = bill.lastAmount !== null ? `${bill.settled.some((x) => x.tx) ? "terakhir" : "nominal awal"} ${rp(bill.lastAmount)}` : null;
+  const s = bill.status;
+  const buttons = (label: string) => (
+    <div className="mt-2.5 grid grid-cols-2 gap-2">
+      <Button type="button" size="sm" onClick={onPay}>{label}</Button>
+      <Button type="button" size="sm" variant="secondary" onClick={onPicked}>Sudah dibayar</Button>
+    </div>
+  );
+
+  if (now) {
+    return (
+      <div className="rounded-2xl bg-[var(--pill-pos-bg)] p-3 text-[var(--pill-pos-ink)]">
+        <p className="flex items-center gap-2 px-1 text-sm font-medium">
+          <CheckCircle2 className="size-4 shrink-0" strokeWidth={2} />
+          {now.tx ? `${monthName(month)} sudah dibayar` : `${monthName(month)} dilewati`}
+        </p>
+        {now.tx && <p className="num mt-0.5 pl-7 text-[13px]">{day(now.tx.date)} · {rp(now.tx.amount)}</p>}
+        <div className="mt-2.5 rounded-xl bg-surface p-3 text-ink">
+          {ahead ? (
+            <>
+              <p className="num text-[13px] text-muted">Tagihan {monthName(pay.month)}{last ? ` · ${last}` : ""}</p>
+              {buttons(`Bayar ${monthName(pay.month)}`)}
+            </>
+          ) : (
+            <button type="button" onClick={() => setAhead(true)} className="flex w-full cursor-pointer items-center justify-between gap-2 text-left text-[13px] text-ink-2 hover:text-ink">
+              <span>Sekalian bayar tagihan {monthName(pay.month)}?</span>
+              <ChevronDown className="size-4 shrink-0" strokeWidth={1.75} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Not settled this month: what is owed, or when it is next due.
+  const when = s.kind === "open" ? s.label : s.kind === "next" ? `jatuh tempo ${day(s.due)}` : null;
+  return (
+    <div className="rounded-2xl border border-line p-3">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1">
+        <span className="text-sm font-medium">Tagihan {monthName(pay.month)}</span>
+        {s.kind === "open" ? <StatusBadge status={s} /> : when && <span className="text-[13px] text-muted">{when}</span>}
+      </p>
+      {last && <p className="num mt-0.5 px-1 text-[13px] text-muted">{last[0].toUpperCase() + last.slice(1)}</p>}
+      {buttons("Bayar sekarang")}
+    </div>
+  );
+}
+
 function PaydayForm({ day: current, categoryId, incomeCats, onDone }: { day: number | null; categoryId: number | null; incomeCats: Opt[]; onDone: () => void }) {
   const [state, action, pending] = useFormAction(savePayday, onDone);
   return (
     <form action={action} className="space-y-4">
       <div className="flex items-center gap-3">
         <label htmlFor="pd-day" className="flex-1 text-sm font-medium">Gaji masuk tiap tanggal</label>
-        <Input id="pd-day" name="paydayDay" type="number" inputMode="numeric" min={1} max={31} required defaultValue={current ?? ""} autoFocus className="w-24 text-center" />
+        <Input id="pd-day" name="paydayDay" type="number" inputMode="numeric" min={1} max={31} required defaultValue={current ?? ""} autoFocus className="max-w-24 text-center" />
       </div>
       <div>
         <Label htmlFor="pd-cat">Kategori gaji</Label>
