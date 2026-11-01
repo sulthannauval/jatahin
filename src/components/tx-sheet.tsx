@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Calendar, Loader2, X } from "lucide-react";
+import { Calendar, Loader2, Repeat, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createCategory, deleteTransaction, deleteTransfer, saveTransaction, saveTransfer, type ActionResult } from "@/app/actions";
+import { reopenBill } from "@/app/bill-actions";
 import { addDays, dayLabel, today } from "@/lib/dates";
 import { groupDigits, rp } from "@/lib/money";
 import { guessCategory } from "@/lib/quick";
@@ -56,6 +58,7 @@ export function TxSheet({ options }: { options: FormOptions }) {
 
 function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const { closeTx, toast } = useTx();
+  const router = useRouter();
   const [kind, setKind] = useState(draft.kind);
   const [categoryId, setCategoryId] = useState<number | undefined>(draft.categoryId);
   // Kantong pickers use 0 for Kantong Utama, which has no row.
@@ -108,7 +111,11 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const [state, action, pending] = useActionState(async (prev: ActionResult | null, fd: FormData) => {
     const res = fd.get("kind") === "transfer" ? await saveTransfer(prev, fd) : await saveTransaction(prev, fd);
     if (res.ok) {
-      toast(res.message ?? "Tersimpan");
+      const undo = res.undo;
+      toast(res.message ?? "Tersimpan", "ok", undo && {
+        label: "Bukan ini",
+        run: () => void reopenBill(undo.billId, undo.month).then((r) => toast(r.ok ? r.message ?? "" : r.error, r.ok ? "ok" : "error")),
+      });
       if (again.current) {
         setAmount("");
         setDescription("");
@@ -167,6 +174,8 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
         <>
           <input type="hidden" name="categoryId" value={categoryId ?? ""} />
           <input type="hidden" name="potId" value={potId || ""} />
+          <input type="hidden" name="billId" value={draft.billId ?? ""} />
+          <input type="hidden" name="billMonth" value={draft.billMonth ?? ""} />
         </>
       )}
 
@@ -345,6 +354,17 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
               </button>
             ))}
           </div>
+        )}
+
+        {/* Something paid every month can become a tagihan from here */}
+        {isEdit && kind === "expense" && draft.kind === "expense" && (
+          <button
+            type="button"
+            onClick={() => { closeTx(); router.push(`/transaksi/tagihan?dari=${draft.id}`); }}
+            className="mt-3 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-field px-3.5 text-[13px] text-ink-2 transition-colors hover:bg-active hover:text-ink"
+          >
+            <Repeat className="size-3.5" strokeWidth={1.75} /> Jadikan tagihan
+          </button>
         )}
 
         {state && !state.ok && (

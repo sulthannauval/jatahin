@@ -16,16 +16,21 @@ export type TxDraft = {
   date?: string;
   amount?: number;
   description?: string;
+  /** Recorded from a tagihan reminder: the tagihan and month it pays. */
+  billId?: number;
+  billMonth?: string;
   /** Changes on every open, so the form resets. */
   nonce?: number;
 };
 
-type Toast = { id: number; text: string; tone: "ok" | "error" };
+/** A button in the toast, such as "Bukan ini" after a tagihan was marked paid on its own. */
+export type ToastAction = { label: string; run: () => void };
+type Toast = { id: number; text: string; tone: "ok" | "error"; action?: ToastAction };
 type Ctx = {
   draft: TxDraft | null;
   openTx: (d?: Partial<TxDraft>) => void;
   closeTx: () => void;
-  toast: (text: string, tone?: "ok" | "error") => void;
+  toast: (text: string, tone?: "ok" | "error", action?: ToastAction) => void;
 };
 
 const TxContext = createContext<Ctx | null>(null);
@@ -35,11 +40,13 @@ export function TxProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
 
-  const toast = useCallback((text: string, tone: "ok" | "error" = "ok") => {
+  const toast = useCallback((text: string, tone: "ok" | "error" = "ok", action?: ToastAction) => {
     const id = ++seq.current;
-    setToasts((t) => [...t.slice(-2), { id, text, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3200);
+    setToasts((t) => [...t.slice(-2), { id, text, tone, action }]);
+    // A toast with a button stays long enough to reach it.
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 7000 : 3200);
   }, []);
+  const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const openTx = useCallback((d?: Partial<TxDraft>) => setDraft({ kind: "expense", ...d, nonce: ++seq.current }), []);
   const closeTx = useCallback(() => setDraft(null), []);
   const value = useMemo(() => ({ draft, openTx, closeTx, toast }), [draft, openTx, closeTx, toast]);
@@ -52,6 +59,15 @@ export function TxProvider({ children }: { children: ReactNode }) {
           <div key={t.id} className="toast-in pointer-events-auto flex max-w-md items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm text-on-primary shadow-lg">
             {t.tone === "ok" ? <CheckCircle2 className="size-4 shrink-0" /> : <XCircle className="size-4 shrink-0" />}
             <span>{t.text}</span>
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => { t.action!.run(); dismiss(t.id); }}
+                className="-my-1 -mr-2 ml-1 h-8 shrink-0 cursor-pointer rounded-full px-3 text-[13px] font-semibold underline-offset-4 hover:underline"
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

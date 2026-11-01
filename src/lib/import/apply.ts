@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { DB } from "../db";
-import { budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "../db/schema";
+import { billPayments, bills, budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "../db/schema";
 import { splitLegacy, splitLegacyBudgets } from "../legacy";
 import type { ImportData, ImportTx } from "./parse";
 
@@ -15,6 +15,8 @@ export async function applyImport(db: DB, data: ImportData, replace: boolean): P
     const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(transactions);
     if (n > 0 && !replace) throw new Error("Database sudah berisi data. Centang 'Hapus semua data lama' untuk menggantinya.");
 
+    await tx.delete(billPayments);
+    await tx.delete(bills);
     await tx.delete(potAdjustments);
     await tx.delete(transactions);
     await tx.delete(transfers);

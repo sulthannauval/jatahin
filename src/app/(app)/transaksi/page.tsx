@@ -53,7 +53,10 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
       </div>
       <div className="mt-0.5 mb-4 flex items-center justify-between gap-3">
         <p className="min-w-0 text-sm text-muted">{count} catatan di {monthLabel(month)}{q ? ` untuk “${q}”` : ""}</p>
-        <MoreLink href="/transaksi/kategori">Kategori</MoreLink>
+        <div className="flex shrink-0 gap-1.5">
+          <MoreLink href="/transaksi/tagihan">Tagihan</MoreLink>
+          <MoreLink href="/transaksi/kategori">Kategori</MoreLink>
+        </div>
       </div>
 
       <Card className="grid grid-cols-2">

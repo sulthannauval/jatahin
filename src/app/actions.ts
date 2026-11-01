@@ -9,14 +9,16 @@ import { requireSession } from "@/lib/auth/dal";
 import { confirmPassword } from "@/lib/auth/confirm";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "@/lib/db/schema";
-import { isDateKey, isMonthKey, monthStart, today } from "@/lib/dates";
+import { bills, budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "@/lib/db/schema";
+import { isDateKey, isMonthKey, monthName, monthStart, today } from "@/lib/dates";
 import { parseAmount, parseBalance, rp } from "@/lib/money";
 import { getKantong } from "@/lib/queries";
 import type { InSheet } from "@/lib/backup/format";
 import { EXPENSE_GROUPS, INCOME_GROUPS } from "@/lib/finance";
+import { settleNewExpense } from "@/lib/bill-writes";
 
-export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
+/** `undo`: a tagihan the saved transaction was matched to automatically, offered as "Bukan ini". */
+export type ActionResult = { ok: true; message?: string; undo?: { billId: number; month: string } } | { ok: false; error: string };
 
 const fail = (error: string): ActionResult => ({ ok: false, error });
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -39,7 +41,7 @@ export async function saveTransaction(_: ActionResult | null, fd: FormData): Pro
   if (!amount) return fail("Nominal wajib diisi.");
   if (!categoryId) return fail("Kategori wajib dipilih.");
 
-  const [cat] = await db.select({ id: categories.id }).from(categories).where(eq(categories.id, categoryId));
+  const [cat] = await db.select({ id: categories.id, kind: categories.kind }).from(categories).where(eq(categories.id, categoryId));
   if (!cat) return fail("Kategori tidak ditemukan.");
   if (potId && !(await potExists(potId))) return fail("Kantong tidak ditemukan.");
 
@@ -47,11 +49,20 @@ export async function saveTransaction(_: ActionResult | null, fd: FormData): Pro
   if (id) {
     const res = await db.update(transactions).set(values).where(eq(transactions.id, id)).returning({ id: transactions.id });
     if (!res.length) return fail("Transaksi tidak ditemukan. Kemungkinan sudah dihapus.");
-  } else {
-    await db.insert(transactions).values(values);
+    refresh();
+    return { ok: true, message: "Perubahan disimpan" };
   }
+  const [row] = await db.insert(transactions).values(values).returning({ id: transactions.id });
+  // Spending can pay a tagihan: the one it was recorded for from a reminder, or one it clearly matches.
+  const billId = optInt(str(fd, "billId"));
+  const billMonth = str(fd, "billMonth");
+  const paid = cat.kind === "expense" ? await settleNewExpense(db, { id: row.id, ...values }, billId && isMonthKey(billMonth) ? { billId, month: billMonth } : null) : null;
   refresh();
-  return { ok: true, message: id ? "Perubahan disimpan" : "Transaksi dicatat" };
+  if (!paid) return { ok: true, message: "Transaksi dicatat" };
+  const label = `${paid.name} ${monthName(paid.month)}`;
+  return paid.auto
+    ? { ok: true, message: `Dicatat. ${label} ditandai lunas`, undo: { billId: paid.billId, month: paid.month } }
+    : { ok: true, message: `${label} dicatat lunas` };
 }
 
 async function potExists(id: number) {
@@ -227,6 +238,8 @@ export async function deleteCategory(id: number): Promise<ActionResult> {
   const db = await getDb();
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(transactions).where(eq(transactions.categoryId, id));
   if (n > 0) return fail(`Kategori ini dipakai di ${n} transaksi. Sembunyikan saja.`);
+  const [{ b }] = await db.select({ b: sql<number>`count(*)::int` }).from(bills).where(eq(bills.categoryId, id));
+  if (b > 0) return fail("Kategori ini dipakai tagihan. Ganti kategori tagihannya dulu.");
   try {
     await db.delete(categories).where(eq(categories.id, id));
   } catch {
@@ -355,7 +368,7 @@ export async function importSpreadsheet(_: ActionResult | null, fd: FormData): P
       refresh();
       return {
         ok: true,
-        message: `Backup dipulihkan: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.adjustments} penyesuaian kantong, ${res.budgets} jatah`,
+        message: `Backup dipulihkan: ${res.transactions} transaksi, ${res.transfers} pindah kantong, ${res.categories} kategori, ${res.pots} kantong, ${res.adjustments} penyesuaian kantong, ${res.budgets} jatah, ${res.bills} tagihan`,
       };
     }
     const { parseWorkbook } = await import("@/lib/import/parse");

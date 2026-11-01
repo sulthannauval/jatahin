@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
 import { getDashboard, getRecentActivity } from "@/lib/queries";
+import { getBillReminders } from "@/lib/bill-queries";
 import { currentMonth, daysInMonth, isMonthKey, monthLabel, monthName, addMonths, today } from "@/lib/dates";
 import { budgetSplit, monthProgress } from "@/lib/finance";
 import { pct, rp } from "@/lib/money";
@@ -11,6 +12,7 @@ import { KpiStrip, change } from "@/components/kpi";
 import { BalanceCard } from "@/components/balance";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { TxList } from "@/components/tx-list";
+import { BillReminders } from "@/components/bill-reminders";
 
 /**
  * One question: "how much money do I have?" Kantong Utama answers it first, like a bank screen; the other kantong
@@ -24,7 +26,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const { m } = await searchParams;
   const month = isMonthKey(m) ? m : currentMonth();
   const db = await getDb();
-  const [d, recent] = await Promise.all([getDashboard(db, month), getRecentActivity(db, 5)]);
+  const [d, recent, bills] = await Promise.all([getDashboard(db, month), getRecentActivity(db, 5), getBillReminders(db, today())]);
   const { summary: s, prev: p, carry, kantong: k } = d;
   const qs = month === currentMonth() ? "" : `?m=${month}`;
 
@@ -62,6 +64,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         <h1 className="text-[22px] leading-8 font-medium tracking-[-0.01em] md:text-2xl">{monthLabel(month)}</h1>
         <MonthSwitcher month={month} path="/" compact />
       </div>
+
+      {/* Tagihan waiting today come before anything else, on the current month only */}
+      {isCurrent && <BillReminders data={bills} />}
 
       {/* The balance first, like a bank screen; how it was reached sits beside it */}
       <BalanceCard
