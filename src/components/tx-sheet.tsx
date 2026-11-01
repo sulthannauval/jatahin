@@ -20,7 +20,8 @@ export function TxSheet({ options, payday }: { options: FormOptions; payday: Pay
   const { draft, closeTx, openTx } = useTx();
   const ref = useRef<HTMLDialogElement>(null);
   // "Sekalian bayar tagihan?": the payday sheet opens once the salary is saved.
-  const [paydayOpen, setPaydayOpen] = useState(false);
+  // The amount just saved, shown in the payday sheet; null while it is closed.
+  const [paydayFor, setPaydayFor] = useState<number | null>(null);
 
   useEffect(() => {
     const d = ref.current;
@@ -55,14 +56,14 @@ export function TxSheet({ options, payday }: { options: FormOptions; payday: Pay
   return (
     <>
       <dialog ref={ref} className="sheet" onClose={closeTx} onClick={(e) => e.target === ref.current && closeTx()} aria-labelledby="tx-title">
-        {draft && <TxForm key={draft.nonce} draft={draft} options={options} payday={payday} onPayday={() => setPaydayOpen(true)} />}
+        {draft && <TxForm key={draft.nonce} draft={draft} options={options} payday={payday} onPayday={setPaydayFor} />}
       </dialog>
-      {payday && <PaydaySheet open={paydayOpen} onClose={() => setPaydayOpen(false)} data={payday} salaryDone />}
+      {payday && <PaydaySheet open={paydayFor !== null} onClose={() => setPaydayFor(null)} data={payday} salaryAmount={paydayFor ?? undefined} />}
     </>
   );
 }
 
-function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options: FormOptions; payday: Payday | null; onPayday: () => void }) {
+function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options: FormOptions; payday: Payday | null; onPayday: (salary: number) => void }) {
   const { closeTx, toast } = useTx();
   const router = useRouter();
   const [kind, setKind] = useState(draft.kind);
@@ -79,7 +80,7 @@ function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options:
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
   const again = useRef(false);
-  const [payNow, setPayNow] = useState(false);
+  const [payNow, setPayNow] = useState(draft.withBills ?? false);
   const amountRef = useRef<HTMLInputElement>(null);
   const isEdit = !!draft.id;
 
@@ -126,7 +127,7 @@ function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options:
       // Only when the offer was still showing and ticked as it was saved.
       if (fd.get("payday") === "1" && !again.current) {
         closeTx();
-        onPayday();
+        onPayday(Number(String(fd.get("amount") ?? "").replace(/\D/g, "")) || 0);
       } else if (again.current) {
         setAmount("");
         setDescription("");

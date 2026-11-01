@@ -71,7 +71,7 @@ export function BillReminders({ data }: { data: Data }) {
             <div className="min-w-0 flex-1">
               <p className="text-[15px] font-medium">{p.label.tone === "today" ? "Hari ini gajian" : `Gajian ${day(p.due)} belum dicatat`}</p>
               <p className="mt-0.5 text-[13px] text-ink-2">
-                {p.bills.length} tagihan{p.saving ? " dan setor tabungan" : ""} menunggu dicatat.
+                {p.salary.recordedOn ? "Gaji sudah dicatat. " : ""}{p.bills.length} tagihan{p.saving ? " dan setor tabungan" : ""} menunggu dicatat.
               </p>
               <p className="num mt-2 text-[13px] text-ink-2">
                 Tagihan {rp(billTotal)}{p.saving ? ` · Tabungan ${rp(p.saving.amount)}` : ""}
@@ -79,7 +79,14 @@ export function BillReminders({ data }: { data: Data }) {
             </div>
             <CloseBtn onClick={() => hide(paydayKey)} label="Sembunyikan pengingat gajian" />
           </div>
-          <Button className="mt-3 w-full sm:w-auto" onClick={() => setSheet(true)}>Catat gajian</Button>
+          {/* The salary is always recorded in the record sheet; the tagihan follow in the payday sheet. */}
+          {p.salary.recordedOn ? (
+            <Button className="mt-3 w-full sm:w-auto" onClick={() => setSheet(true)}>Bayar tagihan gajian</Button>
+          ) : (
+            <Button className="mt-3 w-full sm:w-auto" onClick={() => openTx({ kind: "income", categoryId: p.salary.categoryId ?? undefined, amount: p.salary.amount ?? undefined, withBills: true })}>
+              Catat gaji
+            </Button>
+          )}
         </div>
       )}
 

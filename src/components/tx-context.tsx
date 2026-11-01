@@ -19,6 +19,8 @@ export type TxDraft = {
   /** Recorded from a tagihan reminder: the tagihan and month it pays. */
   billId?: number;
   billMonth?: string;
+  /** Recording the salary from the payday reminder: "Sekalian bayar tagihan?" starts ticked. */
+  withBills?: boolean;
   /** Changes on every open, so the form resets. */
   nonce?: number;
 };
