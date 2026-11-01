@@ -35,12 +35,14 @@ const hiddenStore = {
 };
 
 /**
- * Tagihan waiting on Beranda: the payday sheet when tagihan "pas gajian" are due, and one card per dated tagihan
- * from the day before. ✕ hides a card until the app is opened again; it comes back until the tagihan is settled.
+ * Tagihan waiting on Beranda, as one short banner so Kantong Utama stays on the first screen: the most pressing one
+ * named, the rest counted. Tapping it opens "Perlu dibayar" with every action. ✕ hides it until the app is opened
+ * again; it keeps coming back until each tagihan is settled (the payday one until the salary is recorded).
  */
 export function BillReminders({ data }: { data: Data }) {
   const raw = useSyncExternalStore(hiddenStore.subscribe, hiddenStore.get, () => "[]");
   const hidden = useMemo(() => new Set<string>(JSON.parse(raw)), [raw]);
+  const [list, setList] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [picking, setPicking] = useState<Dated | null>(null);
   const { openTx, toast } = useTx();
@@ -54,95 +56,114 @@ export function BillReminders({ data }: { data: Data }) {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
-  const hide = (key: string) => hiddenStore.set([...hidden, key]);
 
   const p = data.payday;
   const paydayKey = p ? `gajian:${p.month}` : "";
-  const dated = data.dated.filter((d) => !hidden.has(`${d.billId}:${d.month}`));
-  const showPayday = p && !hidden.has(paydayKey);
-  if (!showPayday && !dated.length) return null;
-  const billTotal = p ? p.bills.reduce((s, b) => s + (b.lastAmount ?? 0), 0) : 0;
+  const keyOf = (d: Dated) => `${d.billId}:${d.month}`;
+  // Late first, then due today, then tomorrow.
+  const rank = { late: 0, today: 1, soon: 2 } as const;
+  const dated = data.dated.filter((d) => !hidden.has(keyOf(d))).sort((a, b) => rank[a.tone] - rank[b.tone] || (a.due < b.due ? -1 : 1));
+  const payday = p && !hidden.has(paydayKey) ? p : null;
+  const count = dated.length + (payday ? 1 : 0);
+  if (!count) return null;
+
+  const late = dated.filter((d) => d.tone === "late").length;
+  const billTotal = payday ? payday.bills.reduce((s, b) => s + (b.lastAmount ?? 0), 0) : 0;
+  const salaryIn = !!payday?.salary.recordedOn;
+  const recordSalary = () => openTx({ kind: "income", categoryId: payday?.salary.categoryId ?? undefined, amount: payday?.salary.amount ?? undefined, withBills: true });
+  const record = (d: Dated) => openTx({ kind: "expense", categoryId: d.categoryId, potId: d.potId, amount: d.lastAmount ?? undefined, description: d.name, billId: d.billId, billMonth: d.month });
+  const paydayTitle = (pd: NonNullable<typeof payday>) =>
+    pd.salary.recordedOn ? "Gaji sudah masuk" : pd.label.tone === "today" ? "Gajian hari ini!" : `Gaji ${day(pd.due)} belum dicatat`;
+  const datedTitle = (d: Dated) => `${d.name} ${d.tone === "late" ? d.text.toLowerCase() : d.tone === "today" ? "hari ini" : "besok"}`;
+
+  // One thing waiting: say it plainly, with its action right there. Several: count them and name each briefly.
+  let title: string, sub: string, action: { label: string; run: () => void } | null = null;
+  if (count === 1 && payday) {
+    title = paydayTitle(payday);
+    sub = salaryIn ? `${payday.bills.length} tagihan siap dibayar · ${rp(billTotal)}` : `${payday.bills.length} tagihan ikut beres sekalian`;
+    action = salaryIn ? { label: "Bayar tagihan", run: () => setSheet(true) } : { label: "Catat gaji", run: recordSalary };
+  } else if (count === 1) {
+    const d = dated[0];
+    title = datedTitle(d);
+    sub = `Jatuh tempo ${day(d.due)}${d.lastAmount !== null ? ` · ${rp(d.lastAmount)}` : ""}`;
+    action = { label: "Catat", run: () => record(d) };
+  } else {
+    title = late ? `${count} tagihan nunggu, ${late} telat` : `${count} tagihan nunggu dibayar`;
+    sub = [
+      ...dated.filter((d) => d.tone === "late").map((d) => `${d.name} telat`),
+      ...(payday ? [payday.salary.recordedOn ? "Tagihan gajian" : payday.label.tone === "today" ? "Gajian hari ini" : "Gaji belum dicatat"] : []),
+      ...dated.filter((d) => d.tone !== "late").map((d) => `${d.name} ${d.tone === "today" ? "hari ini" : "besok"}`),
+    ].join(" · ");
+  }
+  const hideAll = () => hiddenStore.set([...hidden, ...dated.map(keyOf), ...(payday ? [paydayKey] : [])]);
+  const then = (fn: () => void) => () => { setList(false); fn(); };
 
   return (
-    <section aria-label="Tagihan" className="mb-4 space-y-2.5">
-      {showPayday && (
-        <div className="rounded-2xl border border-hue bg-brand-soft px-5 py-4">
-          <div className="flex items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-medium">{p.label.tone === "today" ? "Hari ini gajian" : `Gajian ${day(p.due)} belum dicatat`}</p>
-              <p className="mt-0.5 text-[13px] text-ink-2">
-                {p.salary.recordedOn ? "Gaji sudah dicatat. " : ""}{p.bills.length} tagihan{p.saving ? " dan setor tabungan" : ""} menunggu dicatat.
-              </p>
-              <p className="num mt-2 text-[13px] text-ink-2">
-                Tagihan {rp(billTotal)}{p.saving ? ` · Tabungan ${rp(p.saving.amount)}` : ""}
-              </p>
-            </div>
-            <CloseBtn onClick={() => hide(paydayKey)} label="Sembunyikan pengingat gajian" />
-          </div>
-          {/* The salary is always recorded in the record sheet; the tagihan follow in the payday sheet. */}
-          {p.salary.recordedOn ? (
-            <Button className="mt-3 w-full sm:w-auto" onClick={() => setSheet(true)}>Bayar tagihan gajian</Button>
-          ) : (
-            <Button className="mt-3 w-full sm:w-auto" onClick={() => openTx({ kind: "income", categoryId: p.salary.categoryId ?? undefined, amount: p.salary.amount ?? undefined, withBills: true })}>
-              Catat gaji
-            </Button>
-          )}
-        </div>
-      )}
+    <section aria-label="Tagihan" className="mb-4">
+      <div className={cn("flex items-center gap-3 rounded-2xl border py-3 pr-2 pl-4 sm:pl-5", late ? "border-[var(--pill-neg-ink)]/40 bg-[var(--pill-neg-bg)]" : "border-hue bg-brand-soft")}>
+        <button type="button" onClick={() => (action ? action.run() : setList(true))} className="min-w-0 flex-1 cursor-pointer text-left">
+          <span className="line-clamp-2 block text-[15px] leading-5 font-semibold">{title}</span>
+          <span className="num mt-0.5 line-clamp-2 block text-[13px] leading-[18px] text-ink-2">{sub}</span>
+        </button>
+        {action ? (
+          <Button size="sm" className="shrink-0" onClick={action.run}>{action.label}</Button>
+        ) : (
+          <Button size="sm" variant="ink" className="shrink-0" onClick={() => setList(true)}>Lihat</Button>
+        )}
+        <button type="button" onClick={hideAll} aria-label="Sembunyikan pengingat tagihan" title="Sembunyikan sampai aplikasi dibuka lagi" className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-ink-2 transition-colors hover:bg-surface/70 hover:text-ink">
+          <X className="size-4" strokeWidth={1.75} />
+        </button>
+      </div>
 
-      {dated.map((d) => (
-        <div key={`${d.billId}:${d.month}`} className="rounded-2xl border border-line bg-surface px-5 py-4">
-          <div className="flex items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-2">
-                <span className="text-[15px] font-medium">{d.name}</span>
-                <Badge tone={d.tone === "late" ? "neg" : d.tone === "today" ? "warn" : "neutral"}>{d.text}</Badge>
-              </p>
-              <p className="num mt-0.5 text-[13px] text-muted">
-                {d.tone === "late" ? `Jatuh tempo ${day(d.due)}` : d.categoryName}
-                {d.lastAmount !== null ? ` · bulan lalu ${rp(d.lastAmount)}` : ""}
-              </p>
-            </div>
-            <CloseBtn onClick={() => hide(`${d.billId}:${d.month}`)} label={`Sembunyikan pengingat ${d.name}`} />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              onClick={() => openTx({ kind: "expense", categoryId: d.categoryId, potId: d.potId, amount: d.lastAmount ?? undefined, description: d.name, billId: d.billId, billMonth: d.month })}
-            >
-              {d.lastAmount !== null ? `Catat ${rp(d.lastAmount)}` : "Catat"}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setPicking(d)}>Sudah dibayar</Button>
-          </div>
-          {d.tone === "late" && (
-            <p className="mt-2.5 text-[13px] text-muted">
-              Tidak bayar bulan ini?{" "}
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => start(async () => { const r = await skipBill(d.billId, d.month); toast(r.ok ? r.message ?? "" : r.error, r.ok ? "ok" : "error"); })}
-                className="cursor-pointer font-medium text-ink underline-offset-4 hover:underline"
-              >
-                Lewati {monthName(d.month)}
-              </button>
-            </p>
-          )}
-        </div>
-      ))}
-
+      <Dialog open={list} onClose={() => setList(false)} title="Perlu dibayar">
+        {list && (
+          <ul className="-mx-5 -mt-2 divide-y divide-rule">
+            {payday && (
+              <li className="px-5 py-3.5">
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="text-[15px] font-medium">Gajian {monthName(payday.month)}</span>
+                  {!salaryIn && <Badge tone={payday.label.tone === "today" ? "warn" : "neutral"}>{payday.label.tone === "today" ? "Hari ini" : `Sejak ${day(payday.due)}`}</Badge>}
+                </p>
+                <p className="num mt-0.5 text-[13px] text-muted">
+                  {salaryIn ? "Gaji sudah dicatat · " : ""}{payday.bills.length} tagihan {rp(billTotal)}{payday.saving ? ` · tabungan ${rp(payday.saving.amount)}` : ""}
+                </p>
+                <Button size="sm" className="mt-2.5" onClick={then(salaryIn ? () => setSheet(true) : recordSalary)}>{salaryIn ? "Bayar tagihan gajian" : "Catat gaji"}</Button>
+              </li>
+            )}
+            {dated.map((d) => (
+              <li key={keyOf(d)} className="px-5 py-3.5">
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="text-[15px] font-medium">{d.name}</span>
+                  <Badge tone={d.tone === "late" ? "neg" : d.tone === "today" ? "warn" : "neutral"}>{d.text}</Badge>
+                </p>
+                <p className="num mt-0.5 text-[13px] text-muted">
+                  {d.tone === "late" ? `Jatuh tempo ${day(d.due)}` : d.categoryName}
+                  {d.lastAmount !== null ? ` · bulan lalu ${rp(d.lastAmount)}` : ""}
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={then(() => record(d))}>{d.lastAmount !== null ? `Catat ${rp(d.lastAmount)}` : "Catat"}</Button>
+                  <Button size="sm" variant="secondary" onClick={then(() => setPicking(d))}>Sudah dibayar</Button>
+                  {d.tone === "late" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={() => start(async () => { const r = await skipBill(d.billId, d.month); toast(r.ok ? r.message ?? "" : r.error, r.ok ? "ok" : "error"); })}
+                    >
+                      Lewati {monthName(d.month)}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Dialog>
       {p && <PaydaySheet open={sheet} onClose={() => setSheet(false)} data={p} />}
       <Dialog open={!!picking} onClose={() => setPicking(null)} title={picking ? `${picking.name} sudah dibayar?` : ""}>
         {picking && <PaidPicker bill={picking} onDone={() => setPicking(null)} />}
       </Dialog>
     </section>
-  );
-}
-
-function CloseBtn({ onClick, label }: { onClick: () => void; label: string }) {
-  return (
-    <button type="button" onClick={onClick} aria-label={label} title="Sembunyikan sampai aplikasi dibuka lagi" className="-mt-1.5 -mr-2 grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-muted transition-colors hover:bg-field hover:text-ink">
-      <X className="size-4" strokeWidth={1.75} />
-    </button>
   );
 }
 
