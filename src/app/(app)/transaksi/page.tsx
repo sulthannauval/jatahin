@@ -7,7 +7,7 @@ import { getActivity, getCategories, type ActivityRow } from "@/lib/queries";
 import { currentMonth, isMonthKey, monthLabel } from "@/lib/dates";
 import { rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { Card, EmptyState } from "@/components/ui";
+import { Card, EmptyState, MoreLink } from "@/components/ui";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { TxList } from "@/components/tx-list";
 import { TxTable } from "@/components/tx-table";
@@ -51,7 +51,10 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
           <MonthSwitcher month={month} path="/transaksi" params={{ ...keep, v: view === "tabel" ? "tabel" : undefined }} />
         </div>
       </div>
-      <p className="mt-0.5 mb-4 text-sm text-muted">{count} catatan di {monthLabel(month)}{q ? ` untuk “${q}”` : ""}</p>
+      <div className="mt-0.5 mb-4 flex items-center justify-between gap-3">
+        <p className="min-w-0 text-sm text-muted">{count} catatan di {monthLabel(month)}{q ? ` untuk “${q}”` : ""}</p>
+        <MoreLink href="/transaksi/kategori">Kategori</MoreLink>
+      </div>
 
       <Card className="grid grid-cols-2">
         <Total label="Pemasukan" value={(income ? "+" : "") + rp(income)} className={income ? "text-pos" : "text-muted"} />

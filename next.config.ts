@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/budget", destination: "/jatah", permanent: false },
       { source: "/tabungan", destination: "/kantong", permanent: false },
+      { source: "/jatah/kategori", destination: "/transaksi/kategori", permanent: false },
     ];
   },
   async headers() {

@@ -1,19 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Archive, ArchiveRestore, Loader2, Pencil, Plus } from "lucide-react";
-import { saveCategory, setCategoryArchived } from "@/app/actions";
+import { Archive, ArchiveRestore, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { deleteCategory, saveCategory, setCategoryArchived } from "@/app/actions";
 import { Dialog, ErrorText, useFormAction } from "@/components/form-kit";
 import { useTx } from "@/components/tx-context";
 import { Badge, Button, Card, Input, Label, PanelHeader, Select } from "@/components/ui";
 import { EXPENSE_GROUPS, INCOME_GROUPS } from "@/lib/finance";
 import { cn } from "@/lib/cn";
 
-type Cat = { id: number; name: string; kind: "income" | "expense"; group: string; archived: boolean };
+type Cat = { id: number; name: string; kind: "income" | "expense"; group: string; archived: boolean; used: number };
 
 const iconBtn = "grid size-8 cursor-pointer place-items-center rounded-full text-muted hover:bg-raised hover:text-ink";
 
-/** Expense and income categories, each in its own card, with add, rename and hide. */
+/** Expense and income categories, each in its own card: add, rename, hide, and delete while unused. */
 export function CategoryManager({ categories }: { categories: Cat[] }) {
   const [editing, setEditing] = useState<Partial<Cat> | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -42,7 +42,10 @@ export function CategoryManager({ categories }: { categories: Cat[] }) {
               <ul className="divide-y divide-rule">
                 {list.map((c) => (
                   <li key={c.id} className={cn("flex min-h-12 items-center gap-2 py-1.5 pr-3 pl-4 sm:pl-5", c.archived && "opacity-50")}>
-                    <span className="min-w-0 flex-1 text-sm leading-5">{c.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm leading-5">{c.name}</span>
+                      <span className="num block text-xs leading-4 text-muted">{c.used ? `${c.used} transaksi` : "Belum dipakai"}</span>
+                    </span>
                     <Badge>{c.group}</Badge>
                     <button onClick={() => setEditing(c)} className={iconBtn} aria-label={`Ubah ${c.name}`}><Pencil className="size-3.5" /></button>
                     <button
@@ -81,9 +84,42 @@ export function CategoryManager({ categories }: { categories: Cat[] }) {
             </div>
             <ErrorText state={state} />
             <Button type="submit" className="w-full" disabled={pending}>{pending && <Loader2 className="size-4 animate-spin" />} Simpan</Button>
+            {editing.id && <DeleteZone cat={editing as Cat} onDone={close} />}
           </form>
         )}
       </Dialog>
     </>
+  );
+}
+
+/** Delete for good, only for a category no transaction uses. Two taps: the first asks, the second deletes. */
+function DeleteZone({ cat, onDone }: { cat: Cat; onDone: () => void }) {
+  const { toast } = useTx();
+  const [asking, setAsking] = useState(false);
+  const [pending, start] = useTransition();
+  if (cat.used > 0) {
+    return <p className="border-t border-rule pt-4 text-center text-xs leading-5 text-muted">Dipakai di {cat.used} transaksi, jadi hanya bisa disembunyikan.</p>;
+  }
+  const remove = () => start(async () => {
+    const r = await deleteCategory(cat.id);
+    toast(r.ok ? r.message ?? "" : r.error, r.ok ? "ok" : "error");
+    if (r.ok) onDone();
+  });
+  return (
+    <div className="border-t border-rule pt-4">
+      {asking ? (
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={() => setAsking(false)}>Batal</Button>
+          <Button type="button" variant="danger" className="flex-1 bg-[var(--pill-neg-bg)]" disabled={pending} onClick={remove}>
+            {pending && <Loader2 className="size-4 animate-spin" />} Hapus {cat.name}
+          </Button>
+        </div>
+      ) : (
+        <Button type="button" variant="danger" className="w-full" onClick={() => setAsking(true)}>
+          <Trash2 className="size-4" strokeWidth={1.75} /> Hapus kategori
+        </Button>
+      )}
+      <p className="mt-1.5 text-center text-xs leading-5 text-muted">Belum dipakai di transaksi mana pun. Jatahnya ikut terhapus.</p>
+    </div>
   );
 }

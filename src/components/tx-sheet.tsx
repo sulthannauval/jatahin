@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Calendar, Loader2, X } from "lucide-react";
-import { deleteTransaction, deleteTransfer, saveTransaction, saveTransfer, type ActionResult } from "@/app/actions";
+import { createCategory, deleteTransaction, deleteTransfer, saveTransaction, saveTransfer, type ActionResult } from "@/app/actions";
 import { addDays, dayLabel, today } from "@/lib/dates";
 import { groupDigits, rp } from "@/lib/money";
 import { guessCategory } from "@/lib/quick";
@@ -74,8 +74,12 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
   const isEdit = !!draft.id;
 
   const isMove = kind === "transfer";
-  const cats = useMemo(() => options.categories.filter((c) => c.kind === kind), [options.categories, kind]);
-  const cat = options.categories.find((c) => c.id === categoryId);
+  // Categories made in this sheet, usable before the server's list catches up.
+  const [added, setAdded] = useState<FormOptions["categories"]>([]);
+  const allCats = useMemo(() => [...options.categories, ...added.filter((a) => !options.categories.some((c) => c.id === a.id))], [options.categories, added]);
+  const cats = useMemo(() => allCats.filter((c) => c.kind === kind), [allCats, kind]);
+  const cat = allCats.find((c) => c.id === categoryId);
+  const [newCat, setNewCat] = useState<{ name: string; group: string } | null>(null);
   const suggestions = (!isMove && categoryId && options.suggestions[categoryId]) || [];
   const groups = (kind === "income" ? INCOME_GROUPS : EXPENSE_GROUPS) as readonly string[];
   const kantongSections = useMemo<PickerSection[]>(() => {
@@ -121,6 +125,7 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
 
   const switchKind = (k: TxDraft["kind"]) => {
     setKind(k);
+    setNewCat(null);
     if (cat && cat.kind !== k) setCategoryId(undefined);
   };
   const pick = (id: number) => {
@@ -251,7 +256,25 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
             </>
           ) : (
             <>
-              <Picker label="Kategori" placeholder="Pilih kategori" sections={catSections} value={categoryId} onChange={pick} invalid={!!state && !state.ok && !categoryId} />
+              <Picker
+                label="Kategori"
+                placeholder="Pilih kategori"
+                sections={catSections}
+                value={categoryId}
+                onChange={pick}
+                invalid={!!state && !state.ok && !categoryId}
+                onCreate={(q) => setNewCat({ name: q, group: kind === "income" ? "Rutin" : "Kebutuhan" })}
+                createLabel="Kategori baru"
+              />
+              {newCat && (
+                <NewCategory
+                  kind={kind === "income" ? "income" : "expense"}
+                  groups={groups}
+                  initial={newCat}
+                  onCancel={() => setNewCat(null)}
+                  onCreated={(c) => { setAdded((a) => [...a, c]); pick(c.id); setNewCat(null); toast("Kategori ditambah"); }}
+                />
+              )}
               {/* Most entries use Kantong Utama, so this row only appears once other kantong exist */}
               {options.pots.length > 0 && (
                 <>
@@ -359,5 +382,66 @@ function TxForm({ draft, options }: { draft: TxDraft; options: FormOptions }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * A small form inside the sheet for a category that doesn't exist yet. Not a <form> (it sits inside the sheet's),
+ * so Enter in the name saves this and never the transaction.
+ */
+function NewCategory({ kind, groups, initial, onCancel, onCreated }: {
+  kind: "income" | "expense";
+  groups: readonly string[];
+  initial: { name: string; group: string };
+  onCancel: () => void;
+  onCreated: (c: FormOptions["categories"][number]) => void;
+}) {
+  const [name, setName] = useState(initial.name);
+  const [group, setGroup] = useState(initial.group);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const save = () => {
+    if (!name.trim()) { setError("Isi nama kategori."); return; }
+    start(async () => {
+      const r = await createCategory({ name, kind, group });
+      if (r.ok) onCreated({ id: r.id, name: name.trim(), kind, group });
+      else setError(r.error);
+    });
+  };
+  return (
+    <div className="mx-2 mb-2 rounded-xl bg-elevated p-3 shadow-[0_0_0_1px_var(--border)]" role="group" aria-label="Kategori baru">
+      <label className="block text-[13px] text-muted" htmlFor="newcat-name">Nama kategori {kind === "income" ? "pemasukan" : "pengeluaran"}</label>
+      <input
+        id="newcat-name"
+        value={name}
+        onChange={(e) => { setName(e.target.value); setError(null); }}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); } }}
+        autoFocus
+        maxLength={60}
+        autoComplete="off"
+        aria-describedby={error ? "newcat-error" : undefined}
+        className="mt-1 h-10 w-full rounded-lg bg-field px-3 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+      />
+      <p className="mt-3 text-[13px] text-muted" id="newcat-group">Tipe</p>
+      <div role="radiogroup" aria-labelledby="newcat-group" className="mt-1 flex flex-wrap gap-1.5">
+        {groups.map((g) => (
+          <button
+            key={g}
+            type="button"
+            role="radio"
+            aria-checked={group === g}
+            onClick={() => setGroup(g)}
+            className={cn("h-8 cursor-pointer rounded-full px-3 text-[13px] transition-colors", group === g ? "bg-ink text-surface" : "bg-field text-ink-2 hover:bg-active hover:text-ink")}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+      {error && <p id="newcat-error" role="alert" className="mt-2 text-[13px] text-neg">{error}</p>}
+      <div className="mt-3 flex gap-2">
+        <Button type="button" size="sm" variant="secondary" className="flex-1" onClick={onCancel}>Batal</Button>
+        <Button type="button" size="sm" className="flex-1" disabled={pending} onClick={save}>{pending && <Loader2 className="size-3.5 animate-spin" />} Simpan kategori</Button>
+      </div>
+    </div>
   );
 }

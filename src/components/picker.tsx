@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Dot } from "./ui";
 
@@ -11,7 +11,7 @@ export type PickerSection = { title: string; options: PickerOption[] };
 
 /**
  * A row in a grouped list that opens into a searchable list right below it (inline, so a sheet never clips it).
- * Keyboard: ↑/↓ to move, Enter to choose, Esc to close.
+ * Keyboard: ↑/↓ to move, Enter to choose, Esc to close. `onCreate` adds a last row to make a new option from the search.
  */
 export function Picker({
   label,
@@ -21,6 +21,8 @@ export function Picker({
   onChange,
   searchable = true,
   invalid,
+  onCreate,
+  createLabel = "Baru",
 }: {
   label: string;
   placeholder: string;
@@ -29,6 +31,8 @@ export function Picker({
   onChange: (id: number) => void;
   searchable?: boolean;
   invalid?: boolean;
+  onCreate?: (query: string) => void;
+  createLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -157,6 +161,16 @@ export function Picker({
               </div>
             ))}
           </div>
+          {onCreate && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onCreate(q.trim()); }}
+              className="flex h-11 w-full cursor-pointer items-center gap-2.5 border-t border-rule px-4 text-left text-sm text-ink-2 transition-colors hover:bg-field hover:text-ink"
+            >
+              <Plus className="size-4 shrink-0" strokeWidth={2} />
+              <span className="truncate">{q.trim() && !flat.some((o) => o.name.toLowerCase() === q.trim().toLowerCase()) ? `Buat “${q.trim()}”` : createLabel}</span>
+            </button>
+          )}
         </div>
       )}
     </div>

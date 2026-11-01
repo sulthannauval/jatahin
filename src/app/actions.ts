@@ -202,6 +202,41 @@ export async function setCategoryArchived(id: number, archived: boolean): Promis
   return { ok: true, message: archived ? "Kategori disembunyikan" : "Kategori diaktifkan kembali" };
 }
 
+/** Quick add from the record sheet: returns the new id so the sheet can select it right away. */
+export async function createCategory(input: { name: string; kind: string; group: string }): Promise<{ ok: true; id: number; message: string } | { ok: false; error: string }> {
+  await requireSession();
+  const parsed = categorySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const { name, kind, group } = parsed.data;
+  const allowed: readonly string[] = kind === "expense" ? EXPENSE_GROUPS : INCOME_GROUPS;
+  if (!allowed.includes(group)) return { ok: false, error: "Tipe tidak valid." };
+  const db = await getDb();
+  try {
+    const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${categories.sortOrder}), 0)::int` }).from(categories);
+    const [row] = await db.insert(categories).values({ name, kind, group, sortOrder: max + 1 }).returning({ id: categories.id });
+    refresh();
+    return { ok: true, id: row.id, message: "Kategori ditambah" };
+  } catch {
+    return { ok: false, error: "Nama kategori sudah digunakan." };
+  }
+}
+
+/** Delete for good, only while no transaction uses it (a typo). Its jatah rows go with it. Used ones can only be hidden. */
+export async function deleteCategory(id: number): Promise<ActionResult> {
+  await requireSession();
+  const db = await getDb();
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(transactions).where(eq(transactions.categoryId, id));
+  if (n > 0) return fail(`Kategori ini dipakai di ${n} transaksi. Sembunyikan saja.`);
+  try {
+    await db.delete(categories).where(eq(categories.id, id));
+  } catch {
+    // A transaction was saved with it in the meantime; the foreign key refuses the delete.
+    return fail("Kategori ini sudah dipakai. Sembunyikan saja.");
+  }
+  refresh();
+  return { ok: true, message: "Kategori dihapus" };
+}
+
 // ── Kantong & goals ───────────────────────────────────────────
 
 export async function savePot(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
