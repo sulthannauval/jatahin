@@ -2,14 +2,16 @@ import type { Metadata } from "next";
 import { ChevronDown } from "lucide-react";
 import { requireSession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
-import { getDashboard } from "@/lib/queries";
-import { addMonths, currentMonth, isMonthKey, monthLabel, monthName } from "@/lib/dates";
+import Link from "next/link";
+import { getDashboard, getReport } from "@/lib/queries";
+import { addMonths, currentMonth, isMonthKey, monthLabel, monthName, today } from "@/lib/dates";
+import { rangeLabel } from "@/lib/report";
 import { categoryChanges } from "@/lib/finance";
-import { pct, rp } from "@/lib/money";
+import { rp } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { Card, Dot, SectionHeader } from "@/components/ui";
 import { Table, Td, Th } from "@/components/table";
-import { KpiStrip, change } from "@/components/kpi";
+import { PaceChart } from "@/components/charts/pace-chart";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { TrendChart, TrendLegend } from "@/components/charts/trend-chart";
 import { TrendTable } from "@/components/dashboard-tables";
@@ -18,17 +20,30 @@ import { Composition } from "@/components/composition";
 export const metadata: Metadata = { title: "Laporan" };
 
 /**
- * One question per section: how did the month go (figures), which categories moved, where did the money go
- * (composition by type, opening to categories), how is it moving (six months). The sheet-style table is on request.
+ * One question: is this month going better or worse than usual, and where? Spending so far against the same days
+ * of last month (whole months once a month is over), then where the money went, which categories moved and six
+ * months of trend. The sheet-style table is on request.
  */
 export default async function ReportPage({ searchParams }: PageProps<"/laporan">) {
   await requireSession();
   const { m } = await searchParams;
   const month = isMonthKey(m) ? m : currentMonth();
-  const d = await getDashboard(await getDb(), month);
-  const { summary: s, prev: p } = d;
-  const prevName = monthName(addMonths(month, -1));
+  const db = await getDb();
+  const [d, r] = await Promise.all([getDashboard(db, month), getReport(db, month, today())]);
+  const s = d.summary;
+  // Last month over the same days while this month runs, so the comparison is fair on the 2nd as on the 30th.
+  const p = r.prevCut;
+  const prevMonth = addMonths(month, -1);
+  const prevName = monthName(prevMonth);
+  const short = (m: string) => monthLabel(m, true).split(" ")[0];
+  const curLabel = rangeLabel(r.cur, !r.running, monthName, short);
+  const prevLabel = rangeLabel(r.prev, !r.running, monthName, short);
   const changes = categoryChanges(s, p, d.cats);
+  const diff = s.expense - p.expense;
+  const payday = d.settings.paydayDay;
+  // Money flow: tagihan apart from day-to-day spending, and what went to saving kantong (less what came back out).
+  const daily = Math.max(s.expense - r.tagihan, 0);
+  const left = s.income - s.expense - d.savedNet;
   const months = d.trend.filter((t) => t.income > 0 || t.expense > 0);
   const avgIn = months.length ? Math.round(months.reduce((a, t) => a + t.income, 0) / months.length) : 0;
   const avgOut = months.length ? Math.round(months.reduce((a, t) => a + t.expense, 0) / months.length) : 0;
@@ -36,33 +51,68 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
 
   return (
     <div className="mx-auto max-w-[960px]">
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-medium tracking-[-0.01em]">Laporan <span className="text-muted">{monthLabel(month)}</span></h1>
-          <p className="mt-0.5 text-sm text-muted">Dibandingkan dengan {prevName}</p>
+          <h1 className="text-[22px] leading-8 font-medium tracking-[-0.01em] md:text-2xl">Laporan</h1>
+          <p className="mt-0.5 text-sm text-muted">{r.running ? `Bulan berjalan · hari ke-${r.day} dari ${r.days}` : `${monthLabel(month)} · dibanding ${prevName}`}</p>
         </div>
         <MonthSwitcher month={month} path="/laporan" compact />
       </div>
 
-      {/* How the month went */}
-      <KpiStrip
-        items={[
-          { label: "Pemasukan", value: rp(s.income), delta: change(p.income, s.income, true), sub: `${prevName} ${rp(p.income)}` },
-          { label: "Pengeluaran", value: rp(s.expense), delta: change(p.expense, s.expense, false), sub: s.fromSavings > 0 ? `${rp(s.fromSavings)} pakai tabungan` : `${prevName} ${rp(p.expense)}` },
-          { label: "Selisih", value: `${s.net > 0 ? "+" : ""}${rp(s.net)}`, tone: s.net < 0 ? "neg" : undefined, sub: "Pemasukan dikurangi pengeluaran" },
-          {
-            label: "Saving rate",
-            value: pct(s.savingRate, 1),
-            tone: s.savingRate !== null && s.savingRate < 0 ? "neg" : undefined,
-            sub: p.savingRate !== null ? `${prevName} ${pct(p.savingRate, 1)}` : "Porsi pemasukan yang disimpan",
-          },
-        ]}
-      />
+      {/* Early in a month, the month just finished is the one worth reading */}
+      {r.running && r.day <= 7 && d.prev.expense + d.prev.income > 0 && (
+        <Link href={`/laporan?m=${prevMonth}`} className="mb-3 flex items-center gap-3 rounded-2xl bg-brand-soft px-4 py-3 text-[13px] leading-5 text-[var(--pill-hue-ink)] transition-opacity hover:opacity-90 sm:px-5">
+          <span className="min-w-0 flex-1">
+            <span className="font-semibold">{prevName} sudah lengkap.</span> Pengeluaran {rp(d.prev.expense)}, pemasukan {rp(d.prev.income)}.
+          </span>
+          <span className="shrink-0 font-medium">Lihat ringkasan ›</span>
+        </Link>
+      )}
+
+      {/* The answer: spending so far, against the same days of last month */}
+      <Card className="px-5 py-5 sm:px-6">
+        <p className="text-sm text-muted">Pengeluaran {curLabel}</p>
+        <p className="num mt-1 text-[32px] leading-[1.15] font-bold tracking-[-0.03em]">{rp(s.expense)}</p>
+        <p className="num mt-1.5 text-[13px]">
+          {p.expense === 0 && s.expense === 0 ? (
+            <span className="text-muted">Belum ada pengeluaran</span>
+          ) : diff === 0 ? (
+            <span className="text-muted">Sama dengan {prevLabel}</span>
+          ) : (
+            <>
+              <span className={cn("rounded-full px-2 py-0.5 font-semibold", diff < 0 ? "bg-[var(--pill-pos-bg)] text-[var(--pill-pos-ink)]" : "bg-[var(--pill-neg-bg)] text-[var(--pill-neg-ink)]")}>
+                {rp(Math.abs(diff))} {diff < 0 ? "lebih hemat" : "lebih boros"}
+              </span>{" "}
+              <span className="text-muted">dari {prevLabel}</span>
+            </>
+          )}
+        </p>
+        <div className="mt-4">
+          <PaceChart cur={r.curDaily} prev={r.prevDaily} days={r.days} markDay={payday ?? undefined} markLabel="gajian" curName={monthName(month)} prevName={prevName} />
+        </div>
+      </Card>
+
+      {/* Where this month's money went */}
+      <section className="mt-8" aria-labelledby="arus">
+        <SectionHeader id="arus" title="Arus uang" note={r.running ? `sampai ${curLabel}` : undefined} />
+        <Card className="px-5 py-2 sm:px-6">
+          <dl className="num divide-y divide-rule text-sm">
+            <Flow label="Pemasukan" value={s.income} sign="+" />
+            {r.tagihan > 0 && <Flow label="Tagihan" value={r.tagihan} sign="−" />}
+            <Flow label={r.tagihan > 0 ? "Belanja harian" : "Pengeluaran"} value={daily} sign="−" />
+            {d.savedNet !== 0 && <Flow label={d.savedNet > 0 ? "Ke tabungan" : "Diambil dari tabungan"} value={Math.abs(d.savedNet)} sign={d.savedNet > 0 ? "−" : "+"} />}
+            <div className="flex items-baseline justify-between gap-4 py-2.5 font-bold">
+              <dt>Sisa</dt>
+              <dd className={cn(left < 0 && "text-neg")}>{left < 0 ? "−" : ""}{rp(Math.abs(left))}</dd>
+            </div>
+          </dl>
+        </Card>
+      </section>
 
       {/* Which categories moved */}
       {changes.length > 0 && (
         <section className="mt-8" aria-labelledby="perubahan">
-          <SectionHeader id="perubahan" title="Perubahan terbesar" note={`per kategori, dibandingkan dengan ${prevName}`} />
+          <SectionHeader id="perubahan" title="Yang berubah" note={`per kategori, dibanding ${prevLabel}`} />
           <Card className="overflow-hidden">
             {/* Phones: a list, so the change stays visible without scrolling sideways */}
             <ul className="divide-y divide-rule sm:hidden">
@@ -78,7 +128,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
             </ul>
             <Table className="hidden sm:table">
               <thead>
-                <tr><Th>Kategori</Th><Th num>{prevName}</Th><Th num>{monthName(month)}</Th><Th num>Selisih</Th></tr>
+                <tr><Th>Kategori</Th><Th num>{prevLabel}</Th><Th num>{curLabel}</Th><Th num>Selisih</Th></tr>
               </thead>
               <tbody>
                 {changes.map((c) => (
@@ -97,9 +147,9 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
 
       {/* Where the money went */}
       <section className="mt-8" aria-labelledby="komposisi">
-        <SectionHeader id="komposisi" title="Komposisi pengeluaran" note="buka tiap tipe untuk melihat kategorinya" />
+        <SectionHeader id="komposisi" title="Ke mana uangnya" note="buka tiap tipe untuk melihat kategorinya" />
         <Card className="p-5 sm:p-6">
-          <Composition cur={s} prev={p} cats={d.cats} prevLabel={prevName} />
+          <Composition cur={s} prev={p} cats={d.cats} prevLabel={prevLabel} />
         </Card>
       </section>
 
@@ -141,6 +191,15 @@ export default async function ReportPage({ searchParams }: PageProps<"/laporan">
           <div className="mt-3"><TrendTable rows={d.table} month={month} /></div>
         </Card>
       </details>
+    </div>
+  );
+}
+
+function Flow({ label, value, sign }: { label: string; value: number; sign: "+" | "−" }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
+      <dt className="text-muted">{label}</dt>
+      <dd className={cn(sign === "+" && value > 0 && "text-pos")}>{value > 0 ? `${sign}${rp(value)}` : rp(0)}</dd>
     </div>
   );
 }
