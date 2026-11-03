@@ -183,6 +183,8 @@ function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
   // The month a skip applies to: the one being asked for, else the next one due.
   const skipMonth = s?.kind === "open" ? s.month : s?.kind === "next" ? s.due.slice(0, 7) : null;
   const settledNow = s?.kind === "paid" || s?.kind === "skipped";
+  // The last payment, when there is one: the amount field is then only for the next tagihan.
+  const paid = bill?.paidAmount ?? null;
   const pay = bill && { billId: bill.id, month: bill.payMonth, name: bill.name, categoryId: bill.categoryId, potId: bill.potId, lastAmount: bill.lastAmount };
 
   // "Sudah dibayar" swaps the form for the list of transactions to pick from.
@@ -274,10 +276,14 @@ function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
       </fieldset>
 
       <div>
-        <Label htmlFor="bill-amount">Nominal</Label>
-        <Input id="bill-amount" name="amount" inputMode="numeric" value={amount} placeholder="Boleh kosong" onChange={(e) => setAmount(groupDigits(e.target.value))} aria-describedby="bill-amount-hint" />
+        <Label htmlFor="bill-amount">{paid !== null ? `Nominal ${monthName(bill!.payMonth)}` : "Nominal"}</Label>
+        <Input id="bill-amount" name="amount" inputMode="numeric" value={amount} placeholder={paid !== null ? `Ikut bayaran terakhir, ${rp(paid)}` : "Boleh kosong"} onChange={(e) => setAmount(groupDigits(e.target.value))} aria-describedby="bill-amount-hint" />
         <p id="bill-amount-hint" className="mt-1.5 text-xs text-muted">
-          {bill && bill.lastAmount !== null && bill.settled.some((x) => x.tx) ? `Bayaran terakhir ${rp(bill.lastAmount)}, dipakai bulan depan. Angka ini hanya cadangan.` : "Dipakai bulan pertama. Setelah itu ikut nominal terakhir dibayar."}
+          {paid === null
+            ? "Dipakai untuk tagihan pertama. Setelah itu ikut nominal terakhir dibayar."
+            : amount
+              ? `Dipakai untuk tagihan ${monthName(bill!.payMonth)} saja. Setelah dibayar, kembali ikut bayaran terakhir.`
+              : "Isi kalau nominal tagihannya sudah keluar, jadi pas bayar tidak perlu diubah lagi."}
         </p>
       </div>
 
@@ -334,7 +340,7 @@ function BillForm({ bill, from, expenseCats, pots, month, onDone }: {
 function PayBox({ bill, pay, month, onPay, onPicked }: { bill: Row; pay: { month: string }; month: string; onPay: () => void; onPicked: () => void }) {
   const [ahead, setAhead] = useState(false);
   const now = bill.settled.find((x) => x.month === month);
-  const last = bill.lastAmount !== null ? `${bill.settled.some((x) => x.tx) ? "terakhir" : "nominal awal"} ${rp(bill.lastAmount)}` : null;
+  const last = bill.lastAmount !== null ? `${bill.amount === null ? "terakhir" : "nominal"} ${rp(bill.lastAmount)}` : null;
   const s = bill.status;
   const buttons = (label: string) => (
     <div className="mt-2.5 grid grid-cols-2 gap-2">

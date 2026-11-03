@@ -57,6 +57,13 @@
       "when": 1793533858455,
       "tag": "0007_tagihan",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793679591844,
+      "tag": "0008_tagihan_next_amount",
+      "breakpoints": true
     }
   ]
 }

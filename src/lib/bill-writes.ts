@@ -6,10 +6,14 @@ import { isMonthKey, monthStart } from "./dates";
 import { matchPayment, type MatchTx } from "./bills";
 import { matchCandidates } from "./bill-queries";
 
-/** Marks a tagihan month as paid by a transaction. False when that month is already settled or the tx is in use. */
+/**
+ * Marks a tagihan month as paid by a transaction. False when that month is already settled or the tx is in use.
+ * A payment uses up the amount set for the next one, so the one after follows this payment again.
+ */
 export async function linkPayment(db: DB, billId: number, month: string, transactionId: number | null): Promise<boolean> {
   if (!isMonthKey(month)) return false;
   const rows = await db.insert(billPayments).values({ billId, month: monthStart(month), transactionId }).onConflictDoNothing().returning({ billId: billPayments.billId });
+  if (rows.length && transactionId !== null) await db.update(bills).set({ amount: null }).where(eq(bills.id, billId));
   return rows.length > 0;
 }
 
