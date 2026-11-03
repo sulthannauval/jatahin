@@ -146,8 +146,8 @@ export const savingPlans = pgTable(
 );
 
 /**
- * Tagihan: something paid every month (electricity, BPJS, a subscription). Its amount is only the first month's;
- * after that the last payment's amount is used.
+ * Tagihan: something paid every month (electricity, BPJS, a subscription). Its amount is the next payment's, when
+ * known (the bill came early); it is cleared once a payment is recorded, and then the last payment's amount is used.
  */
 export const bills = pgTable(
   "bills",

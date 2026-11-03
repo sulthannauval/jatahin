@@ -13,8 +13,10 @@ export type BillRow = BillInfo & {
   potName: string | null;
   amount: number | null;
   note: string;
-  /** The last payment's amount, or the amount set on the tagihan before the first one. */
+  /** What the next payment is expected to be: the amount set for it, else the last payment's. */
   lastAmount: number | null;
+  /** The last payment's amount, if any. */
+  paidAmount: number | null;
   settled: Settled[];
 };
 
@@ -42,10 +44,11 @@ export async function loadBills(db: DB) {
   }
   const list: BillRow[] = rows.map(({ b, categoryName, potName }) => {
     const settled = byBill.get(b.id) ?? [];
+    const paidAmount = settled.find((s) => s.tx)?.tx?.amount ?? null;
     return {
       id: b.id, name: b.name, categoryId: b.categoryId, schedule: b.schedule, dueDay: b.dueDay, createdOn: b.createdAt.toISOString().slice(0, 10),
       categoryName, potId: b.potId, potName, amount: b.amount, note: b.note, settled,
-      lastAmount: settled.find((s) => s.tx)?.tx?.amount ?? b.amount,
+      lastAmount: b.amount ?? paidAmount, paidAmount,
     };
   });
   return { bills: list, paydayDay: cfg?.paydayDay ?? null, salaryCategoryId: cfg?.salaryCategoryId ?? null };

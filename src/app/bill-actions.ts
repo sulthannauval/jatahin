@@ -195,6 +195,7 @@ export async function recordPayday(input: PaydayInput): Promise<ActionResult> {
       const b = chosen.find((x) => x.id === l.billId)!;
       const [row] = await tx.insert(transactions).values({ date, categoryId: b.categoryId, potId: b.potId, description: b.name, amount: l.amount }).returning({ id: transactions.id });
       await tx.insert(billPayments).values({ billId: b.id, month: monthStart(month), transactionId: row.id });
+      await tx.update(bills).set({ amount: null }).where(eq(bills.id, b.id));
       n++;
     }
     if (saving) {
