@@ -28,7 +28,7 @@ A personal finance app for one owner: monthly budgets, savings kept apart, recur
 | **Laporan** | Spending so far against the same days of last month, a day-by-day pace chart, where the money went (income, bills, daily spending, savings, left over), the categories that changed most and a six-month trend. |
 | **Backup** | All data as one `.xlsx` file, downloaded on demand and emailed every week, and restored from the same page. |
 
-Light and dark themes, phone and desktop, installable as a PWA.
+Light and dark themes, phone and desktop, installable as a PWA. Opening the app plays a short intro once per tab: a coin drops in, a J cuts the jatah out of it, and the logo lands in its place (skipped with reduced motion).
 
 ## Principles
 

@@ -8,6 +8,7 @@ import { logout } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { useTx } from "./tx-context";
 import { ThemeToggle } from "./theme-toggle";
+import { Mark } from "./brand";
 
 // Each icon is the thing itself: a receipt for entries, portions of a pie for jatah (like the mark),
 // a wallet holding cards for kantong, a rising line for reports.
@@ -34,19 +35,6 @@ export function BottomNavLive() {
   return <BottomNav path={usePathname()} />;
 }
 
-/** The product mark, drawn inline so it follows the theme: a mint tile with a black coin. */
-export function Mark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden className={cn("size-7 shrink-0", className)}>
-      <rect width="64" height="64" rx="16" fill="var(--primary)" />
-      {/* A coin with one portion lifted out and set aside: "jatah". Same drawing as app/icon.svg. */}
-      <path d={COIN} fill="var(--on-primary)" />
-      <path d={PORTION} fill="var(--on-primary)" transform="translate(2.6 -3.6)" />
-    </svg>
-  );
-}
-const COIN = "M32 32 49.12 26.44A18 18 0 1 1 32 14Z";
-const PORTION = "M32 32V14a18 18 0 0 1 17.12 12.44Z";
 
 export function Sidebar({ path = null }: { path?: string | null }) {
   const isActive = activeIn(path);
@@ -55,7 +43,7 @@ export function Sidebar({ path = null }: { path?: string | null }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col px-3 pt-6 pb-4 md:flex">
       <Link href="/" className="mb-6 flex items-center gap-2.5 px-2">
-        <Mark />
+        <Mark className="size-7" />
         <span className="leading-tight">
           <span className="block text-[15px] font-medium">Jatahin!</span>
           <span className="block text-xs text-muted">Atur Jatah, Baru Belanja</span>
@@ -137,8 +125,8 @@ function BottomItem({ item: { href, short, icon: Icon }, active }: { item: (type
 export function MobileBar() {
   return (
     <div className="mb-4 flex h-10 items-center justify-between md:hidden">
-      <Link href="/" className="flex items-center gap-2">
-        <Mark className="size-6" />
+      <Link href="/" className="flex items-center gap-1.5">
+        <Mark className="size-[18px]" />
         <span className="text-[15px] font-medium">Jatahin!</span>
       </Link>
       <div className="flex items-center gap-1">

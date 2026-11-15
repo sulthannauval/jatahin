@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Mark } from "@/components/nav";
+import { Mark } from "@/components/brand";
 
 /** The frame shared by sign-in, setup and recovery pages. */
 export function AuthShell({ title, sub, children, footer }: { title: string; sub: string; children: ReactNode; footer?: ReactNode }) {
@@ -7,7 +7,7 @@ export function AuthShell({ title, sub, children, footer }: { title: string; sub
     <main className="grid min-h-dvh place-items-center px-5 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
-          <Mark className="size-10" />
+          <Mark className="size-9" />
           <div>
             <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
             <p className="text-sm text-muted">{sub}</p>

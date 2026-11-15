@@ -151,6 +151,67 @@ dialog.sheet[open] { animation: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 /* Loading: flat bars at the real size, no shimmer. */
 .skeleton { background: var(--raised); border-radius: 6px; }
 
+/* Opening (components/intro.tsx): gaji masuk, dijatahin, jatah disisihkan, baru belanja. Shown only while
+   html[data-intro] is set, which the head script decides before the first paint. The logos it lands on stay
+   hidden until then. */
+.intro { display: none; }
+html[data-intro] [data-brand-mark] { visibility: hidden; }
+html[data-intro] .intro { position: fixed; inset: 0; z-index: 100; isolation: isolate; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--ink); }
+.intro-bg { position: absolute; inset: 0; z-index: -1; background: var(--ground); }
+.intro-lock { display: flex; align-items: center; gap: 9px; }
+.intro-coin-wrap { position: relative; top: 3px; width: 32px; height: 32px; }
+.intro-coin { width: 32px; height: 32px; transform-origin: 50% 100%; will-change: transform; animation: intro-drop .78s .05s both; }
+.intro-coin svg { display: block; overflow: visible; }
+.intro-shadow { position: absolute; left: 4px; top: 29px; width: 24px; height: 6px; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / .22), transparent); opacity: 0; animation: intro-shadow 1.15s .05s both; }
+:root[data-theme="dark"] .intro-shadow { display: none; }
+.intro-word { display: flex; align-items: baseline; font-size: 32px; font-weight: 800; letter-spacing: -1.1px; line-height: 1; }
+.intro-w { display: inline-block; clip-path: inset(0 100% 0 0); transform: translateX(-8px); animation: intro-wipe .5s 1.3s cubic-bezier(.22, 1, .36, 1) forwards; }
+.intro-bang { display: inline-block; opacity: 0; transform-origin: 50% 100%; animation: intro-bang .46s 1.72s both; }
+.intro-tag { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--muted); opacity: 0; transform: translateY(4px); animation: intro-rise .4s 1.92s ease-out forwards; }
+/* 2 a mint line cuts the J; 3 the coin becomes two pieces (each with its own gap) and the jatah steps out */
+.intro-blade { stroke-dasharray: 100 110; stroke-dashoffset: 101; animation: intro-draw .36s .8s cubic-bezier(.7, 0, .3, 1) forwards, intro-off .3s 1.22s ease-out forwards; }
+.intro-parts { opacity: 0; animation: intro-on 0s 1.16s forwards; }
+.intro-whole { animation: intro-off 0s 1.17s forwards; }
+.intro-slice, .intro-rest { transform-box: view-box; animation: intro-part .66s 1.18s both; }
+.intro-slice { --intro-d: -2.8px; }
+.intro-rest { --intro-d: 1px; }
+.intro-piece { animation: intro-tint .32s 1.2s ease-out forwards; }
+/* 1 the coin falls and lands with a little give */
+@keyframes intro-drop {
+  0% { opacity: 0; transform: translateY(-40px) scale(.95, 1.05); animation-timing-function: cubic-bezier(.5, 0, .85, .5); }
+  10% { opacity: 1; }
+  42% { transform: translateY(-1px) scale(.96, 1.05); animation-timing-function: linear; }
+  48% { transform: translateY(0) scale(1.1, .89); animation-timing-function: cubic-bezier(.2, .6, .35, 1); }
+  67% { transform: translateY(-4px) scale(.98, 1.03); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
+  83% { transform: translateY(0) scale(1.025, .975); animation-timing-function: cubic-bezier(.3, 0, .3, 1); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes intro-shadow {
+  0% { opacity: 0; transform: scaleX(.35); animation-timing-function: cubic-bezier(.5, 0, .9, .45); }
+  32% { opacity: 1; transform: scaleX(1.1); }
+  45% { opacity: .7; transform: scaleX(.95); }
+  56% { opacity: .9; transform: scaleX(1.02); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+@keyframes intro-part {
+  0% { transform: none; animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+  38% { transform: translate(var(--intro-d), var(--intro-d)); animation-timing-function: cubic-bezier(.34, 1.5, .64, 1); }
+  100% { transform: none; }
+}
+@keyframes intro-tint { to { fill: var(--brand); } }
+@keyframes intro-draw { to { stroke-dashoffset: 0; } }
+@keyframes intro-on { to { opacity: 1; } }
+@keyframes intro-off { to { opacity: 0; } }
+/* 4 the name comes out of the coin; the "!" lands like the coin did */
+@keyframes intro-wipe { to { clip-path: inset(0 0 0 0); transform: none; } }
+@keyframes intro-bang {
+  0% { opacity: 0; transform: translateY(-16px) scale(.9, 1.15); animation-timing-function: cubic-bezier(.5, 0, .9, .45); }
+  45% { opacity: 1; transform: translateY(0) scale(1.18, .82); animation-timing-function: cubic-bezier(.2, .6, .35, 1); }
+  72% { transform: translateY(-2px) scale(.97, 1.04); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes intro-rise { to { opacity: 1; transform: none; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
