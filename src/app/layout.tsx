@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { Intro } from "@/components/intro";
 
 // Mint Signal's faces: Plus Jakarta Sans for everything, IBM Plex Mono for code only.
 const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"] });
@@ -21,15 +22,20 @@ export const viewport: Viewport = {
 };
 
 const THEME_SCRIPT = `try{var t=localStorage.getItem("mf-theme");if(t==="dark")document.documentElement.dataset.theme="dark"}catch(e){}`;
+// The opening plays once per tab (sessionStorage), never with reduced motion. Decided here, before the first paint.
+const INTRO_SCRIPT = `try{if(!sessionStorage.getItem("jt-intro")&&!matchMedia("(prefers-reduced-motion: reduce)").matches){sessionStorage.setItem("jt-intro","1");document.documentElement.dataset.intro="play"}}catch(e){}`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // Light by default. A saved choice ("mf-theme" in localStorage) is applied before first paint, so there's no flash.
     <html lang="id" data-theme="light" suppressHydrationWarning className={`${jakarta.variable} ${plexMono.variable} h-full antialiased`}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT + INTRO_SCRIPT }} />
       </head>
-      <body className="min-h-full font-sans">{children}</body>
+      <body className="min-h-full font-sans">
+        {children}
+        <Intro />
+      </body>
     </html>
   );
 }
