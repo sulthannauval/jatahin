@@ -55,7 +55,7 @@ function ReconcileForm({ potId, name, balance, onDone }: { potId: number; name: 
   }, null);
 
   return (
-    <form action={action} className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+    <form action={action} className="p-5 pb-[max(1.25rem,var(--inset-bottom))]">
       <input type="hidden" name="potId" value={potId} />
       <div className="mb-5 flex items-center justify-between">
         <h2 id={`rc-${potId}`} className="text-base font-medium">Cocokkan {name}</h2>
