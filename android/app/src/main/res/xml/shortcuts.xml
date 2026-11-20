@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown when the app icon is held down, like the web app's manifest shortcuts. MainActivity opens the sheet. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="catat_pengeluaran"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_pengeluaran"
+        android:shortcutShortLabel="@string/shortcut_pengeluaran_short"
+        android:shortcutLongLabel="@string/shortcut_pengeluaran_long">
+        <intent
+            android:action="app.jatahin.CATAT"
+            android:targetPackage="app.jatahin"
+            android:targetClass="app.jatahin.MainActivity">
+            <extra android:name="jenis" android:value="pengeluaran" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="catat_pemasukan"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_pemasukan"
+        android:shortcutShortLabel="@string/shortcut_pemasukan_short"
+        android:shortcutLongLabel="@string/shortcut_pemasukan_long">
+        <intent
+            android:action="app.jatahin.CATAT"
+            android:targetPackage="app.jatahin"
+            android:targetClass="app.jatahin.MainActivity">
+            <extra android:name="jenis" android:value="pemasukan" />
+        </intent>
+    </shortcut>
+</shortcuts>
