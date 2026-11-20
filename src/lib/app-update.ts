@@ -1,13 +1,13 @@
-/** Releases of the Android app live in a public repository, so the app can check them without signing in. */
-export const RELEASES_REPO = "sulthannauval/jatahin-releases";
+/** Android releases are published on this public repository, so the app can check them without signing in. */
+export const RELEASES_REPO = "sulthannauval/jatahin";
 export const RELEASES_API = `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`;
 export const RELEASES_PAGE = `https://github.com/${RELEASES_REPO}/releases/latest`;
 
 type Version = [number, number, number];
 
-/** "v1.2.3" or "1.2.3" -> [1, 2, 3]; anything else -> null. */
+/** "android-v1.2.3" (a release tag), "v1.2.3" or "1.2.3" -> [1, 2, 3]; anything else -> null. */
 export function parseVersion(s: string): Version | null {
-  const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(s.trim());
+  const m = /^(?:android-)?v?(\d+)\.(\d+)\.(\d+)$/.exec(s.trim());
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 }
 

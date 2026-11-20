@@ -26,13 +26,12 @@ import java.util.Locale;
 /**
  * In-app updates. The page finds a newer release on GitHub; this downloads its APK, checks the SHA-256 the
  * release lists, and opens Android's installer, where the user confirms. Android itself refuses an APK not
- * signed with the same key as the installed app. Only release assets of the public releases repository are
- * downloaded.
+ * signed with the same key as the installed app. Only release assets of the jatahin repository are downloaded.
  */
 @CapacitorPlugin(name = "Updater")
 public class UpdaterPlugin extends Plugin {
 
-    private static final String RELEASES = "https://github.com/sulthannauval/jatahin-releases/releases/download/";
+    private static final String RELEASES = "https://github.com/sulthannauval/jatahin/releases/download/";
     private static final long MAX_BYTES = 200L * 1024 * 1024;
 
     private boolean allowed() {
