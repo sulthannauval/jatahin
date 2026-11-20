@@ -32,7 +32,14 @@ import java.util.Locale;
 @CapacitorPlugin(name = "Updater")
 public class UpdaterPlugin extends Plugin {
 
-    private static final String RELEASES = "https://github.com/sulthannauval/jatahin-releases/releases/download/";
+    /**
+     * Where an update may come from. Releases move from jatahin-releases to the jatahin repository; this build
+     * accepts both so a phone on it can follow the move. The old one can go once every install is past 1.0.3.
+     */
+    private static final String[] RELEASES = {
+        "https://github.com/sulthannauval/jatahin/releases/download/",
+        "https://github.com/sulthannauval/jatahin-releases/releases/download/",
+    };
     private static final long MAX_BYTES = 200L * 1024 * 1024;
 
     private boolean allowed() {
@@ -89,7 +96,9 @@ public class UpdaterPlugin extends Plugin {
     }
 
     private static boolean isRelease(String url) {
-        return url != null && url.startsWith(RELEASES) && !url.contains("..");
+        if (url == null || url.contains("..")) return false;
+        for (String prefix : RELEASES) if (url.startsWith(prefix)) return true;
+        return false;
     }
 
     private static HttpURLConnection open(String url) throws IOException {
