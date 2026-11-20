@@ -4,4 +4,8 @@
     <string name="title_activity_main">Jatahin!</string>
     <string name="package_name">app.jatahin</string>
     <string name="custom_url_scheme">app.jatahin</string>
+    <string name="shortcut_pengeluaran_short">Pengeluaran</string>
+    <string name="shortcut_pengeluaran_long">Catat pengeluaran</string>
+    <string name="shortcut_pemasukan_short">Pemasukan</string>
+    <string name="shortcut_pemasukan_long">Catat pemasukan</string>
 </resources>
