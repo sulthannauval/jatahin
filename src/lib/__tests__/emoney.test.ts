@@ -28,4 +28,20 @@ describe("card rows", () => {
     ]);
     expect(rows.map((r) => [r.amount, r.topUp])).toEqual([[4000, false], [50000, true], [1000, false]]);
   });
+
+  // Records as a real TapCash returned them: the user data starts with the balance after (0x9A4C = 39.500).
+  const tapcash = [
+    { date: "19/11/2026 20:49:47", amount: 15000, type: "Payment", terminal: "00009A4C12240040" },
+    { date: "19/11/2026 07:10:00", amount: 5000, type: "Payment", terminal: "0000DEA812240040" },
+  ];
+
+  it("shows the balance after each transaction when the newest matches the card", () => {
+    expect(historyRows(tapcash, 39500).map((r) => r.after)).toEqual([39500, 57000]);
+  });
+
+  it("shows none when the newest does not match or the balance is unknown", () => {
+    expect(historyRows(tapcash, 40000).every((r) => r.after === undefined)).toBe(true);
+    expect(historyRows(tapcash).every((r) => r.after === undefined)).toBe(true);
+    expect(historyRows([{ date: "19/11/2026 20:49:47", amount: 1, type: "Payment", terminal: "0a1b2c3d4e5f" }], 1)[0].after).toBeUndefined();
+  });
 });
