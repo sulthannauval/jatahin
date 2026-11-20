@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { BottomNav, BottomNavLive, MobileBar, Sidebar, SidebarNav } from "@/components/nav";
 import { TxProvider } from "@/components/tx-context";
 import { TxSheetHost } from "@/components/tx-sheet-host";
+import { AppUpdate } from "@/components/native/app-update";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
@@ -12,6 +13,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         <main className="min-w-0 flex-1 px-4 pt-3 pb-28 sm:px-6 md:pt-9 md:pr-8 md:pb-12 md:pl-4">
           <div className="mx-auto max-w-[1240px]">
             <MobileBar />
+            <AppUpdate />
             {children}
           </div>
         </main>

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Android project; its assets/public is a copy made by `cap sync`.
+    "android/**",
   ]),
 ]);
 
