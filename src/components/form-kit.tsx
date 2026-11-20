@@ -29,7 +29,7 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
   return (
     <dialog ref={ref} className="sheet" onClose={onClose} onClick={(e) => e.target === ref.current && onClose()}>
       {open && (
-        <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <div className="p-5 pb-[max(1.25rem,var(--inset-bottom))]">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-medium">{title}</h2>
             <button onClick={onClose} className="grid size-9 cursor-pointer place-items-center rounded-full text-muted hover:bg-raised" aria-label="Tutup"><X className="size-4" /></button>

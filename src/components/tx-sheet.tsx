@@ -411,7 +411,7 @@ function TxForm({ draft, options, payday, onPayday }: { draft: TxDraft; options:
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 border-t border-rule bg-elevated px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <div className="flex items-center gap-2 border-t border-rule bg-elevated px-5 pt-3 pb-[max(1.25rem,var(--inset-bottom))]">
         {isEdit ? (
           <Button
             type="button"

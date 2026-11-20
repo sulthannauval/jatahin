@@ -97,7 +97,7 @@ export function BottomNav({ path = null }: { path?: string | null }) {
   const isActive = activeIn(path);
   const { openTx } = useTx();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Navigasi utama">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[var(--inset-bottom)] md:hidden" aria-label="Navigasi utama">
       <div className="mx-auto flex max-w-lg items-center px-1">
         <BottomItem item={items[0]} active={isActive(items[0].href)} />
         <BottomItem item={items[1]} active={isActive(items[1].href)} />

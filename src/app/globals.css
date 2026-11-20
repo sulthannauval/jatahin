@@ -4,6 +4,13 @@
    black-and-mint in dark mode. Mint (#51f0a8) is too light for text or thin marks on white, so light mode uses a
    deeper mint (--brand-ink, --hue) there; dark mode uses the mint itself. Five category hues stay as small marks.
    Light is the default; dark is set by <html data-theme="dark">. Still no gradients, glass or resting shadows. */
+/* Safe areas. The Android app (Capacitor SystemBars, insetsHandling "css") injects --safe-area-inset-*, which stay
+   correct on WebViews older than Chromium 140 where env() reports 0. Browsers and the PWA fall back to env(). */
+:root {
+  --inset-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --inset-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+
 :root {
   color-scheme: light;
   --ground: #f7f8f8;
