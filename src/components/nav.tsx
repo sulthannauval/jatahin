@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { ChartNoAxesCombined, ChartPie, House, LogOut, Plus, ReceiptText, Settings2, WalletCards } from "lucide-react";
+import { ChartNoAxesCombined, ChartPie, House, LogOut, Plus, ReceiptText, Settings2, SmartphoneNfc, WalletCards } from "lucide-react";
 import { logout } from "@/app/actions";
 import { cn } from "@/lib/cn";
 import { useTx } from "./tx-context";
 import { ThemeToggle } from "./theme-toggle";
 import { Mark } from "./brand";
+import { useNativeApp } from "./native/plugins";
 
 // Each icon is the thing itself: a receipt for entries, portions of a pie for jatah (like the mark),
 // a wallet holding cards for kantong, a rising line for reports.
@@ -121,8 +122,10 @@ function BottomItem({ item: { href, short, icon: Icon }, active }: { item: (type
   );
 }
 
-/** Phone header: the product's mark, then Laporan (which has no room in the bottom bar) and settings. */
+/** Phone header: the product's mark, then Laporan (which has no room in the bottom bar) and settings. In the
+ * Android app, Cek E-Money comes first. */
 export function MobileBar() {
+  const native = useNativeApp();
   return (
     <div className="mb-4 flex h-10 items-center justify-between md:hidden">
       <Link href="/" className="flex items-center gap-1.5">
@@ -131,6 +134,11 @@ export function MobileBar() {
       </Link>
       <div className="flex items-center gap-1">
         <ThemeToggle compact />
+        {native && (
+          <Link href="/cek-emoney" aria-label="Cek E-Money" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised">
+            <SmartphoneNfc className="size-5" strokeWidth={1.5} />
+          </Link>
+        )}
         <Link href="/laporan" aria-label="Laporan" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised">
           <ChartNoAxesCombined className="size-5" strokeWidth={1.5} />
         </Link>

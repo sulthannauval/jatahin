@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Intro } from "@/components/intro";
+import { NativeSystemBars } from "@/components/native/system-bars";
 
 // Mint Signal's faces: Plus Jakarta Sans for everything, IBM Plex Mono for code only.
 const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"] });
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full font-sans">
         {children}
         <Intro />
+        <NativeSystemBars />
       </body>
     </html>
   );

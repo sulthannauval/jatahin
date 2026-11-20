@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Jatahin!</string>
+    <string name="title_activity_main">Jatahin!</string>
+    <string name="package_name">app.jatahin</string>
+    <string name="custom_url_scheme">app.jatahin</string>
+</resources>
