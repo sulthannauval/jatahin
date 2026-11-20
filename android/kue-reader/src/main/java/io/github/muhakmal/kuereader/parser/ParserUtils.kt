@@ -2,6 +2,7 @@ package io.github.muhakmal.kuereader.parser
 
 import android.nfc.tech.IsoDep
 import android.util.Log
+import io.github.muhakmal.kuereader.CardParser
 
 /**
  * APDU communication channel abstraction.
@@ -11,7 +12,15 @@ fun interface ApduChannel {
     fun transceive(command: ByteArray): ByteArray
 }
 
-fun IsoDep.asChannel(): ApduChannel = ApduChannel { transceive(it) }
+/** Changed for Jatahin: every exchange is added to [CardParser]'s trace, for the app's raw data view. */
+fun IsoDep.asChannel(): ApduChannel = ApduChannel { cmd ->
+    try {
+        transceive(cmd).also { CardParser.trace(cmd, it, null) }
+    } catch (e: Exception) {
+        CardParser.trace(cmd, null, e.message ?: e.javaClass.simpleName)
+        throw e
+    }
+}
 
 fun ByteArray.toHexString(): String {
     return joinToString("") { "%02x".format(it) }.uppercase()

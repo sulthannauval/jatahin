@@ -15,4 +15,12 @@ android {
     kotlinOptions {
         jvmTarget = '21'
     }
+    // Parsers log through android.util.Log; in JVM tests those calls do nothing.
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
 }
