@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, readSessionToken, renewSessionToken, sessionCookieOptions } from "@/lib/auth/session";
+import { SESSION_COOKIE, clearedSessionCookie, readSessionToken, renewSessionToken, sessionCookieOptions } from "@/lib/auth/session";
 
 // Pages reachable without a session: recovery and email links must work signed out.
 // The cron route checks its own secret instead.
@@ -11,6 +11,13 @@ export async function proxy(request: NextRequest) {
   const ok = session !== null;
   const { pathname, search } = request.nextUrl;
   if (pathname === "/login" || pathname === "/daftar") {
+    // Sent here by /auth/expired: the token is still signed but no longer matches the account. Drop it here as
+    // well instead of bouncing back to the app, which would send it here again in a loop.
+    if (request.nextUrl.searchParams.has("expired")) {
+      const res = NextResponse.next();
+      if (request.cookies.has(SESSION_COOKIE)) res.cookies.set(SESSION_COOKIE, "", clearedSessionCookie);
+      return res;
+    }
     return ok ? NextResponse.redirect(new URL("/", request.url)) : NextResponse.next();
   }
   if (PUBLIC.has(pathname)) return NextResponse.next();

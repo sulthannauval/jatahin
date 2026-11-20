@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/dal";
 import { confirmPassword } from "@/lib/auth/confirm";
-import { SESSION_COOKIE } from "@/lib/auth/session";
+import { SESSION_COOKIE, clearedSessionCookie } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { bills, budgets, categories, potAdjustments, pots, savingPlans, settings, transactions, transfers } from "@/lib/db/schema";
 import { isDateKey, isMonthKey, monthName, monthStart, today } from "@/lib/dates";
@@ -386,6 +386,6 @@ export async function importSpreadsheet(_: ActionResult | null, fd: FormData): P
 // ── Session ───────────────────────────────────────────────────
 
 export async function logout() {
-  (await cookies()).delete(SESSION_COOKIE);
+  (await cookies()).set(SESSION_COOKIE, "", clearedSessionCookie);
   redirect("/login");
 }
