@@ -68,12 +68,12 @@ class TapCashParser : EmoneyParser {
                 val data = resp.payload()
                 // A card that ignores the offset answers with the purse again; that is not a log.
                 if (data.contentEquals(purse)) break
-                val count = data.size / RECORD
-                if (count == 0) break
-                for (i in 0 until count) records.add(data.copyOfRange(i * RECORD, (i + 1) * RECORD))
-                // A card returns at most a page of records per read; ask for the next page only when this one was full.
-                if (count < PAGE) break
-                offset += count
+                val page = (0 until data.size / RECORD).map { data.copyOfRange(it * RECORD, (it + 1) * RECORD) }
+                // Stop at the end of the log: nothing back, an empty slot, or a record already read (the card
+                // ignored the offset). TapCash answers one record per read, so the offset steps by what came back.
+                if (page.isEmpty() || page[0].all { it.toInt() == 0 } || records.any { it.contentEquals(page[0]) }) break
+                records.addAll(page.takeWhile { r -> !r.all { it.toInt() == 0 } })
+                offset += page.size
             }
         } catch (e: Exception) {
             log.append("TapCash Hist Err: ${e.message}\n")
@@ -99,7 +99,6 @@ class TapCashParser : EmoneyParser {
         const val MAX_LOG_RECORDS = 30
         private const val PURSE: Byte = 0x03
         private const val RECORD = 16
-        private const val PAGE = 15
 
         private val AIDS = listOf(
             byteArrayOf(0xA0.toByte(), 0x00, 0x42, 0x4E, 0x49, 0x10, 0x00, 0x01), // "BNI"

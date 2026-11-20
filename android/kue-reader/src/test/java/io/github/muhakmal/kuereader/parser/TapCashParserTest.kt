@@ -74,4 +74,42 @@ class TapCashParserTest {
         // Only selects and reads were sent.
         assertTrue(card.sent.all { it.startsWith("00A40400") || it.startsWith("903203") })
     }
+
+    // Captured from a real TapCash on 20/11/2026 (card number zeroed): the card answers one log record per read.
+    private val realPurse = "0701009A4C000000" + "0".repeat(16) +
+        "00000000062341404D9F29FC0000000006002AF83A4311841E2000000000060027103A83AB81" +
+        "0000000000000000000000000000000000020000000000001E84800000000000000000000000000066"
+
+    @Test
+    fun readsARealTapCashOneRecordAtATime() {
+        val card = FakeCard(mapOf(
+            "00A4040008A000424E4910000100" to "9000",
+            "9032030000" to realPurse + "9000",
+            "90320300010000" to "01FFC5683BF9706B00009A4C12240040" + "9000",
+            "90320300010100" to "01FFEC783BF8AA1000011B1C12240040" + "9000",
+            "90320300010200" to "6A83",
+        ))
+        val r = TapCashParser().parseChannel(card, "", StringBuilder())!!
+
+        assertEquals(39_500.0, r.balance, 0.0)
+        assertEquals(2, r.transactionHistory.size)
+        val first = r.transactionHistory[0]
+        assertEquals("Payment", first.type)
+        assertEquals(15_000.0, first.amount, 0.0)
+        assertEquals("19/11/2026 20:49:47", first.date)
+        assertEquals(5_000.0, r.transactionHistory[1].amount, 0.0)
+    }
+
+    @Test
+    fun stopsWhenTheCardIgnoresTheOffset() {
+        val rec = "01FFC5683BF9706B00009A4C12240040" + "9000"
+        val card = FakeCard(mapOf(
+            "9032030000" to realPurse + "9000",
+            "90320300010000" to rec,
+            "90320300010100" to rec,
+        ))
+        val r = TapCashParser().parseChannel(card, "", StringBuilder())!!
+        assertEquals(1, r.transactionHistory.size)
+        assertEquals(2, card.sent.count { it.startsWith("9032030001") })
+    }
 }
