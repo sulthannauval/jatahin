@@ -67,3 +67,9 @@ export const sessionCookieOptions = {
   sameSite: "lax" as const,
   path: "/",
 };
+
+/**
+ * Options that remove the session cookie. In production it is a __Host- cookie, which a browser only replaces
+ * when the new one is also Secure with Path=/; a bare delete is ignored and the old token stays.
+ */
+export const clearedSessionCookie = { ...sessionCookieOptions, maxAge: 0 };

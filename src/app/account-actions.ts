@@ -10,7 +10,7 @@ import { cancelTokens, issueToken, recentTokens } from "@/lib/auth/tokens";
 import { normalizeEmail, passwordProblem } from "@/lib/auth/policy";
 import { requireSession, startSession } from "@/lib/auth/dal";
 import { confirmPassword } from "@/lib/auth/confirm";
-import { SESSION_COOKIE } from "@/lib/auth/session";
+import { SESSION_COOKIE, clearedSessionCookie } from "@/lib/auth/session";
 import { MAIL_FAILED, appUrl, mailMode, sendMail, trySendMail } from "@/lib/mail";
 import { dateTimeLabel } from "@/lib/dates";
 import type { ActionResult } from "./actions";
@@ -93,6 +93,6 @@ export async function cancelEmailChange(): Promise<ActionResult> {
 export async function signOutEverywhere(): Promise<void> {
   await requireSession();
   await bumpSessionVersion(await getDb());
-  (await cookies()).delete(SESSION_COOKIE);
+  (await cookies()).set(SESSION_COOKIE, "", clearedSessionCookie);
   redirect("/login");
 }
