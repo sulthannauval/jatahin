@@ -1,8 +1,8 @@
 name: Android
 
 # Pull requests that touch the app shell build a debug APK to try out (an artifact on the run).
-# A tag android-v1.2.3 builds the signed release and publishes it as v1.2.3 in the public releases
-# repository, which the installed app checks for updates.
+# A tag android-v1.2.3 builds the signed release and publishes it as a release of this repository, on that
+# tag. The installed app checks this repository's latest release for updates.
 on:
   pull_request:
     paths:
@@ -22,14 +22,13 @@ concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  RELEASES_REPO: sulthannauval/jatahin-releases
-
 jobs:
   apk:
     name: build APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -91,10 +90,9 @@ jobs:
           JATAHIN_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease -PversionName=${{ steps.v.outputs.version }}
 
-      - name: Publish release
+      - name: Check and package the release APK
         if: startsWith(github.ref, 'refs/tags/android-v')
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           VERSION: ${{ steps.v.outputs.version }}
         run: |
           apk=android/app/build/outputs/apk/release/app-release.apk
@@ -106,9 +104,37 @@ jobs:
           cp "$apk" "dist/jatahin-$VERSION.apk"
           (cd dist && sha256sum "jatahin-$VERSION.apk" > "jatahin-$VERSION.apk.sha256")
 
+      - uses: actions/upload-artifact@v7
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        with:
+          name: release-apk
+          path: dist/
+          retention-days: 7
+
+  # Only this job can write to the repository, and it runs only for a release tag: it builds nothing, it only
+  # publishes what the build job signed and checked.
+  release:
+    name: publish release
+    needs: apk
+    if: startsWith(github.ref, 'refs/tags/android-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-apk
+          path: dist
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.apk.outputs.version }}
+        run: |
           # Release notes: the tag's message, then the checksum.
-          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
-          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" | sed '/-----BEGIN/,$d' > notes.md
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" -q .object.sha > tag.sha
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$(cat tag.sha)" -q .message | sed '/-----BEGIN/,$d' > notes.md
           printf '\nSHA-256: `%s`\n' "$(cut -d' ' -f1 "dist/jatahin-$VERSION.apk.sha256")" >> notes.md
 
-          gh release create "v$VERSION" dist/* --repo "$RELEASES_REPO" --title "Jatahin! $VERSION" --notes-file notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --repo "$GITHUB_REPOSITORY" --title "Jatahin! $VERSION" --notes-file notes.md

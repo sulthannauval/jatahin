@@ -52,7 +52,7 @@ phone / desktop (PWA) ──► Vercel, Next.js App Router (sin1)
 Vercel Cron (Monday 06:00 WIB) ──► /api/cron/backup ──► .xlsx emailed via Resend
 
 Android app (Capacitor) ──► loads the same production site
-   └─ native: NFC card reading, in-app updates from the public releases repository
+   └─ native: NFC card reading, in-app updates from this repository's releases
 ```
 
 | Part | Role |
@@ -119,12 +119,12 @@ The APK is a [Capacitor](https://capacitorjs.com) shell that opens the productio
 
 | | |
 | --- | --- |
-| **Install and update** | From [jatahin-releases](https://github.com/sulthannauval/jatahin-releases), a public repository holding only the APKs. On launch the app checks its latest release, downloads a newer APK, verifies its SHA-256 and opens Android's installer. |
+| **Install and update** | From this repository's [Releases](https://github.com/sulthannauval/jatahin/releases/latest). On launch the app checks the latest release, downloads a newer APK, verifies its SHA-256 and opens Android's installer. |
 | **Card reading** | [`android/kue-reader`](android/kue-reader) is [osp-kue-reader](https://github.com/muhakmal/osp-kue-reader) v1.0.0 (Apache-2.0), kept in the repository so every command sent to a card can be read. It only sends read commands. |
 | **Pull requests** | Changes under `android/`, `capacitor-www/` or `capacitor.config.ts` build a debug APK, attached to the workflow run. |
-| **Releases** | Pushing a tag `android-v1.2.3` builds the signed APK and publishes it as `v1.2.3`, with the tag message as release notes. |
+| **Releases** | Pushing a tag `android-v1.2.3` builds the signed APK and publishes it as a release on that tag, with the tag message as release notes. |
 
-The release workflow ([`.github/workflows/android.yml`](.github/workflows/android.yml)) reads five repository secrets, all created by the owner:
+The release workflow ([`.github/workflows/android.yml`](.github/workflows/android.yml)) publishes with the workflow's own token and reads four repository secrets, all created by the owner:
 
 | Secret | What |
 | --- | --- |
@@ -132,9 +132,41 @@ The release workflow ([`.github/workflows/android.yml`](.github/workflows/androi
 | `ANDROID_KEYSTORE_PASSWORD` | The keystore password. |
 | `ANDROID_KEY_ALIAS` | The key's alias in the keystore. |
 | `ANDROID_KEY_PASSWORD` | The key password. |
-| `RELEASES_TOKEN` | A fine-grained token with *Contents: read and write* on `jatahin-releases` only. |
 
 To build locally (needs JDK 21 and the Android SDK): `npx cap sync android`, then `./gradlew assembleDebug` in `android/`.
+
+### Install
+
+1. Open the [latest release](https://github.com/sulthannauval/jatahin/releases/latest) on the phone and download the `.apk` file.
+2. Open it. Android asks to allow installs from the browser or file manager: allow it.
+3. Tap **Install**, then open Jatahin! and sign in.
+
+Google Play Protect may warn that the app is from an unknown developer, because it is not distributed through the Play Store. Tap **More details**, then **Install anyway**.
+
+### Updates
+
+When the app opens it checks for a newer release. A banner shows **Update tersedia**; tap **Perbarui** and the APK downloads inside the app, then confirm Android's **Update** dialog. Android does not let an app from outside the Play Store update itself silently, so the last tap is always yours. Nothing is lost: the data lives in the account, not on the phone.
+
+### Verifying a download
+
+Every release lists the SHA-256 of its APK; `sha256sum jatahin-*.apk` should match it. All releases are signed with the same key. `apksigner verify --print-certs jatahin-*.apk` (Android SDK) should report the certificate SHA-256 digest `415a524a243a997f1b85c2776f33a2d4fb2c9d72cbdd9688cf938a3193d185e2`.
+
+### Permissions
+
+| Permission | Why |
+| --- | --- |
+| Internet | Loads the web app and checks for updates. |
+| NFC | Reads prepaid cards for Cek E-Money. |
+| Install packages | Opens Android's installer when an update is downloaded. |
+
+Nothing else: no location, contacts, camera or storage.
+
+### Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| "App not installed" | The installed copy was signed differently or is a newer version, for example a test build. Uninstall it, then install the latest release. The data is kept in the account. |
+| No update banner | The app checks when it opens. Close it fully and open it again, or install the latest release by hand. |
 
 ## Security
 
@@ -145,7 +177,7 @@ To build locally (needs JDK 21 and the Android SDK): `npx cap sync android`, the
 - **Email links** are random, single-use and expire in 30–60 minutes; only their hash is stored. "Lupa password?" gives the same reply for any address and sends at most 3 links per kind per 15 minutes.
 - **Server only.** All data access happens on the server, and every page and action checks the session again.
 - **Secrets** (`.env*`), the local database and `.xlsx` files are never committed.
-- **Android app.** It only loads the production site; other sites open in the browser. Updates are downloaded only from the releases repository, checked against the release's SHA-256, and Android accepts them only when signed with the same key. App data is excluded from Android backups.
+- **Android app.** It only loads the production site; other sites open in the browser. Updates are downloaded only from this repository's releases, checked against the release's SHA-256, and Android accepts them only when signed with the same key. App data is excluded from Android backups.
 
 Locked out with no email? `npm run reset-password`, run against the same database, sets a new password, ends every session and clears the lockout.
 

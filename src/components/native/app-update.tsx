@@ -26,7 +26,7 @@ async function findUpdate(): Promise<Update | null> {
 }
 
 /**
- * Android app only: asks the public releases repository for a newer version and offers it. "Perbarui" downloads
+ * Android app only: asks this repository's latest GitHub release for a newer version and offers it. "Perbarui" downloads
  * it in the app and opens Android's installer, where the user confirms.
  */
 export function AppUpdate() {

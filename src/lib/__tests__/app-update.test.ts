@@ -3,15 +3,17 @@ import { isNewer, parseVersion, pickUpdate } from "../app-update";
 
 const apk = (v: string, extra: object = {}) => ({
   name: `jatahin-${v}.apk`,
-  browser_download_url: `https://github.com/sulthannauval/jatahin-releases/releases/download/v${v}/jatahin-${v}.apk`,
+  browser_download_url: `https://github.com/sulthannauval/jatahin/releases/download/android-v${v}/jatahin-${v}.apk`,
   size: 4_200_000,
   ...extra,
 });
 const sha = "a".repeat(64);
 
 describe("versions", () => {
-  it("reads tags with or without v", () => {
+  it("reads release tags, with or without v", () => {
+    expect(parseVersion("android-v1.2.3")).toEqual([1, 2, 3]);
     expect(parseVersion("v1.2.3")).toEqual([1, 2, 3]);
+    expect(parseVersion("ios-v1.2.3")).toBeNull();
     expect(parseVersion("1.10.0")).toEqual([1, 10, 0]);
     expect(parseVersion("1.2")).toBeNull();
     expect(parseVersion("v1.2.3-beta")).toBeNull();
@@ -28,12 +30,12 @@ describe("versions", () => {
 
 describe("pickUpdate", () => {
   it("offers a newer release with the asset digest", () => {
-    const u = pickUpdate({ tag_name: "v1.1.0", body: " Baca kartu Brizzi \n", assets: [apk("1.1.0", { digest: `sha256:${sha.toUpperCase()}` })] }, "1.0.0");
+    const u = pickUpdate({ tag_name: "android-v1.1.0", body: " Baca kartu Brizzi \n", assets: [apk("1.1.0", { digest: `sha256:${sha.toUpperCase()}` })] }, "1.0.0");
     expect(u).toEqual({ version: "1.1.0", notes: "Baca kartu Brizzi", apkUrl: apk("1.1.0").browser_download_url, sha256: sha, shaUrl: undefined, size: 4_200_000 });
   });
 
   it("falls back to the .sha256 file when there is no digest", () => {
-    const shaFile = { name: "jatahin-1.1.0.apk.sha256", browser_download_url: "https://github.com/sulthannauval/jatahin-releases/releases/download/v1.1.0/jatahin-1.1.0.apk.sha256" };
+    const shaFile = { name: "jatahin-1.1.0.apk.sha256", browser_download_url: "https://github.com/sulthannauval/jatahin/releases/download/android-v1.1.0/jatahin-1.1.0.apk.sha256" };
     const u = pickUpdate({ tag_name: "v1.1.0", assets: [apk("1.1.0"), shaFile] }, "1.0.0");
     expect(u?.sha256).toBeUndefined();
     expect(u?.shaUrl).toBe(shaFile.browser_download_url);
