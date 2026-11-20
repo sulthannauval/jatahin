@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { App } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
-import { Check, Copy, SmartphoneNfc } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, SmartphoneNfc } from "lucide-react";
 import { historyRows, maskCardId, type CardRead } from "@/lib/emoney";
 import { RELEASES_PAGE } from "@/lib/app-update";
 import { rp } from "@/lib/money";
@@ -12,6 +12,8 @@ import { Button, Card, buttonClass } from "@/components/ui";
 import { EMoney, errorCode, useNativeApp, type NfcState } from "@/components/native/plugins";
 
 const CARDS = "TapCash · e-money · Flazz · Brizzi";
+/** Card history rows per page. */
+const PAGE = 7;
 
 const when = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 const whenLabel = (d: Date) => when.format(d).replace(" pukul", ",");
@@ -115,6 +117,12 @@ function Prompt({ reading, read }: { reading: boolean; read: CardRead | null }) 
 function Result({ read }: { read: CardRead }) {
   const card = read.card!;
   const rows = historyRows(card.history, card.readable ? card.balance : undefined);
+  // A new tap starts again at the first page.
+  const [paged, setPaged] = useState({ read, page: 0 });
+  const pages = Math.ceil(rows.length / PAGE);
+  const page = paged.read === read ? Math.min(paged.page, Math.max(pages - 1, 0)) : 0;
+  const go = (p: number) => setPaged({ read, page: p });
+  const shown = rows.slice(page * PAGE, page * PAGE + PAGE);
   const idr = card.currency === "IDR";
   const money = (n: number) => (idr ? rp(n) : `${n.toLocaleString("id-ID")} ${card.currency}`);
   return (
@@ -131,27 +139,45 @@ function Result({ read }: { read: CardRead }) {
         )}
       </Card>
       <Card>
-        <h2 className="px-5 pt-4 text-base font-medium">Riwayat di kartu</h2>
+        <div className="flex items-baseline justify-between gap-3 px-5 pt-4">
+          <h2 className="text-base font-medium">Riwayat di kartu</h2>
+          {rows.length > 0 && <p className="text-xs text-muted tabular-nums">{rows.length} transaksi</p>}
+        </div>
         {rows.length === 0 ? (
           <p className="px-5 pt-1 pb-5 text-sm text-muted">Kartu ini tidak menyimpan riwayat yang bisa dibaca.</p>
         ) : (
-          <ul className="mt-2 px-5 pb-2">
-            {rows.map((r) => (
-              <li key={r.key} className="flex items-center justify-between gap-3 border-t border-rule py-3 first:border-t-0">
-                <div className="min-w-0">
-                  <p className="text-[15px]">{r.topUp ? "Isi ulang" : "Pembayaran"}</p>
-                  <p className="truncate text-xs text-muted">{[r.at ? whenLabel(r.at) : null, r.where].filter(Boolean).join(" · ") || "Tanggal tidak terbaca"}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className={cn("text-[15px] tabular-nums", r.topUp && "text-pos")}>
-                    {r.topUp ? "+" : "−"}
-                    {money(r.amount)}
-                  </p>
-                  {r.after !== undefined && <p className="text-xs text-muted tabular-nums">sisa {money(r.after)}</p>}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="mt-2 px-5 pb-2">
+              {shown.map((r) => (
+                <li key={r.key} className="flex items-center justify-between gap-3 border-t border-rule py-3 first:border-t-0">
+                  <div className="min-w-0">
+                    <p className="text-[15px]">{r.topUp ? "Isi ulang" : "Pembayaran"}</p>
+                    <p className="truncate text-xs text-muted">{[r.at ? whenLabel(r.at) : null, r.where].filter(Boolean).join(" · ") || "Tanggal tidak terbaca"}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className={cn("text-[15px] tabular-nums", r.topUp && "text-pos")}>
+                      {r.topUp ? "+" : "−"}
+                      {money(r.amount)}
+                    </p>
+                    {r.after !== undefined && <p className="text-xs text-muted tabular-nums">sisa {money(r.after)}</p>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {pages > 1 && (
+              <div className="flex items-center justify-between border-t border-rule px-2 py-1.5">
+                <button type="button" onClick={() => go(page - 1)} disabled={page === 0} aria-label="Halaman sebelumnya" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised disabled:pointer-events-none disabled:opacity-30">
+                  <ChevronLeft className="size-5" strokeWidth={1.5} />
+                </button>
+                <p className="text-xs text-muted tabular-nums" aria-live="polite">
+                  {page * PAGE + 1}–{page * PAGE + shown.length} dari {rows.length}
+                </p>
+                <button type="button" onClick={() => go(page + 1)} disabled={page >= pages - 1} aria-label="Halaman berikutnya" className="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-raised disabled:pointer-events-none disabled:opacity-30">
+                  <ChevronRight className="size-5" strokeWidth={1.5} />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </Card>
     </>
