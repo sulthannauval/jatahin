@@ -50,18 +50,41 @@ export interface HistoryRow {
   amount: number;
   topUp: boolean;
   where?: string;
+  /** The card's balance right after this transaction, when the card keeps it. */
+  after?: number;
 }
 
-/** Newest first; rows without a readable date go last, in the card's order. */
-export function historyRows(history: CardTx[]): HistoryRow[] {
-  const rows = history.map((t, i): HistoryRow & { i: number } => ({
+/**
+ * A CEPAS (TapCash) log record keeps 8 bytes of user data, which the reader passes on as `terminal` in hex;
+ * its first 4 bytes are the balance after the transaction.
+ */
+function balanceAfter(t: CardTx): number | undefined {
+  if (!t.terminal || !/^[0-9a-f]{16}$/i.test(t.terminal)) return undefined;
+  return parseInt(t.terminal.slice(0, 8), 16);
+}
+
+/**
+ * Newest first; rows without a readable date go last, in the card's order. The balance after each row is kept
+ * only when the newest row's matches the card's balance, so a card whose user data means something else shows none.
+ */
+export function historyRows(history: CardTx[], balance?: number): HistoryRow[] {
+  const rows = history.map((t, i) => ({
     key: `${i}-${t.date}-${t.amount}`,
     at: parseCardDate(t.date),
     amount: Math.abs(t.amount),
     topUp: isTopUp(t.type),
     where: t.location || undefined,
+    after: balanceAfter(t),
     i,
   }));
   rows.sort((a, b) => (a.at && b.at ? b.at.getTime() - a.at.getTime() : a.at ? -1 : b.at ? 1 : a.i - b.i));
-  return rows.map((r) => ({ key: r.key, at: r.at, amount: r.amount, topUp: r.topUp, where: r.where }));
+  const trusted = balance !== undefined && rows.length > 0 && rows[0].after === balance;
+  return rows.map((r) => ({
+    key: r.key,
+    at: r.at,
+    amount: r.amount,
+    topUp: r.topUp,
+    where: r.where,
+    ...(trusted && r.after !== undefined ? { after: r.after } : {}),
+  }));
 }

@@ -114,7 +114,7 @@ function Prompt({ reading, read }: { reading: boolean; read: CardRead | null }) 
 
 function Result({ read }: { read: CardRead }) {
   const card = read.card!;
-  const rows = historyRows(card.history);
+  const rows = historyRows(card.history, card.readable ? card.balance : undefined);
   const idr = card.currency === "IDR";
   const money = (n: number) => (idr ? rp(n) : `${n.toLocaleString("id-ID")} ${card.currency}`);
   return (
@@ -142,10 +142,13 @@ function Result({ read }: { read: CardRead }) {
                   <p className="text-[15px]">{r.topUp ? "Isi ulang" : "Pembayaran"}</p>
                   <p className="truncate text-xs text-muted">{[r.at ? whenLabel(r.at) : null, r.where].filter(Boolean).join(" · ") || "Tanggal tidak terbaca"}</p>
                 </div>
-                <p className={cn("shrink-0 text-[15px] tabular-nums", r.topUp && "text-pos")}>
-                  {r.topUp ? "+" : "−"}
-                  {money(r.amount)}
-                </p>
+                <div className="shrink-0 text-right">
+                  <p className={cn("text-[15px] tabular-nums", r.topUp && "text-pos")}>
+                    {r.topUp ? "+" : "−"}
+                    {money(r.amount)}
+                  </p>
+                  {r.after !== undefined && <p className="text-xs text-muted tabular-nums">sisa {money(r.after)}</p>}
+                </div>
               </li>
             ))}
           </ul>
